@@ -93,6 +93,7 @@ let db = {
     stepIndex: 0,
     intervalDuration: 0,
     stepDuration: 0,
+    workoutMessage: {message: '', ttl: 0, id: 0},
     watchStatus: TimerStatus.stopped,
     workoutStatus: TimerStatus.stopped,
 

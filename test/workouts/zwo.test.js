@@ -204,6 +204,176 @@ describe('Zwo', () => {
     });
 });
 
+describe('TextEvents', () => {
+    test('SteadyState textevents attached to interval', () => {
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <SteadyState Duration="60" Power="0.5">
+                    <textevent timeoffset="0" message="Start cue" locIndex="1" />
+                    <textevent timeoffset="30" message="Halfway &apos;there&apos;" locIndex="2" />
+                </SteadyState>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals.length).toBe(1);
+        expect(res.intervals[0].textevents).toStrictEqual([
+            {timeoffset: 0, message: 'Start cue', locIndex: 1},
+            {timeoffset: 30, message: "Halfway 'there'", locIndex: 2},
+        ]);
+    });
+
+    test('intervals without textevents do not carry the field', () => {
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <SteadyState Duration="60" Power="0.5"/>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals[0]).toStrictEqual({
+            duration: 60,
+            steps: [{duration: 60, power: 0.5}],
+        });
+        expect(res.intervals[0].textevents).toBeUndefined();
+    });
+
+    test('Warmup textevents attached to interval', () => {
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <Warmup Duration="60" PowerLow="0.4" PowerHigh="0.7">
+                    <textevent timeoffset="0" message="Warm up" locIndex="1" />
+                </Warmup>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals[0].duration).toBe(60);
+        expect(res.intervals[0].textevents).toStrictEqual([
+            {timeoffset: 0, message: 'Warm up', locIndex: 1},
+        ]);
+    });
+
+    test('IntervalsT distributes textevents to sub-intervals with local offsets', () => {
+        // Repeat=3 OnDuration=60 OffDuration=30 → 6 sub-intervals with cumulative starts:
+        // 0 (on0), 60 (off0), 90 (on1), 150 (off1), 180 (on2), 240 (off2). Total 270.
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <IntervalsT Repeat="3" OnDuration="60" OffDuration="30" OnPower="1.0" OffPower="0.5">
+                    <textevent timeoffset="0"   message="Go" locIndex="1" />
+                    <textevent timeoffset="60"  message="Rest" locIndex="2" />
+                    <textevent timeoffset="90"  message="Second on" locIndex="3" />
+                    <textevent timeoffset="200" message="Last block cue" locIndex="4" />
+                </IntervalsT>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals.length).toBe(6);
+
+        // sub-interval 0: on0 [0, 60) → "Go" at local 0
+        expect(res.intervals[0].textevents).toStrictEqual([
+            {timeoffset: 0, message: 'Go', locIndex: 1},
+        ]);
+        // sub-interval 1: off0 [60, 90) → "Rest" at local 0
+        expect(res.intervals[1].textevents).toStrictEqual([
+            {timeoffset: 0, message: 'Rest', locIndex: 2},
+        ]);
+        // sub-interval 2: on1 [90, 150) → "Second on" at local 0
+        expect(res.intervals[2].textevents).toStrictEqual([
+            {timeoffset: 0, message: 'Second on', locIndex: 3},
+        ]);
+        // sub-interval 3: off1 [150, 180) → no events
+        expect(res.intervals[3].textevents).toBeUndefined();
+        // sub-interval 4: on2 [180, 240) → "Last block cue" at local 20 (200-180)
+        expect(res.intervals[4].textevents).toStrictEqual([
+            {timeoffset: 20, message: 'Last block cue', locIndex: 4},
+        ]);
+        // sub-interval 5: off2 [240, 270) → no events
+        expect(res.intervals[5].textevents).toBeUndefined();
+    });
+
+    test('IntervalsT textevents past block end are clamped to last sub-interval', () => {
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <IntervalsT Repeat="2" OnDuration="30" OffDuration="30" OnPower="1.0" OffPower="0.5">
+                    <textevent timeoffset="999" message="Way past end" />
+                </IntervalsT>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals.length).toBe(4);
+        // last sub-interval (off1 starts at 90) → local = 999 - 90 = 909
+        expect(res.intervals[3].textevents).toStrictEqual([
+            {timeoffset: 909, message: 'Way past end'},
+        ]);
+    });
+
+    test('textevent without locIndex is parsed without the field', () => {
+        const input = `
+        <workout_file>
+            <author>Flux</author>
+            <name>Test</name>
+            <category>Test</category>
+            <description>Test</description>
+            <sporttype>bike</sporttype>
+            <tags></tags>
+            <workout>
+                <SteadyState Duration="30" Power="0.5">
+                    <textevent timeoffset="5" message="Cue" />
+                </SteadyState>
+            </workout>
+        </workout_file>`;
+
+        const res = zwo.readToInterval(input);
+
+        expect(res.intervals[0].textevents).toStrictEqual([
+            {timeoffset: 5, message: 'Cue'},
+        ]);
+    });
+});
+
 describe('Head', () => {
     test('Head.read', () => {
         const xml = `

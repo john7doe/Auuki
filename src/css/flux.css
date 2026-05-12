@@ -959,6 +959,37 @@ div.graph--bar-group {
     z-index: 1;
 }
 
+.workout-message {
+    position: absolute;
+    top: 1.8em;
+    left: 0.5em;
+    right: 0.5em;
+    z-index: 3;
+
+    display: block;
+    padding: 0.5em 0.75em;
+    font-family: var(--ssb-font-family);
+    font-size: 0.95em;
+    line-height: 1.3em;
+    text-align: center;
+
+    color: var(--white, #fff);
+    border-radius: 0.3em;
+
+    pointer-events: none;
+    transition: opacity 200ms ease-in-out;
+    opacity: 1;
+}
+
+.workout-message.is-hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.workout-message:empty {
+    display: none;
+}
+
 .elevation--value {
     position: absolute;
     top: 0.4em;

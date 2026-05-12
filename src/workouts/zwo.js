@@ -71,10 +71,44 @@ function attributesToStep(args = {}) {
     }, {});
 }
 
+function readTextEvents(el) {
+    if(!exists(el) || !exists(el.children)) return [];
+
+    const out = [];
+    const children = el.children;
+
+    for(let i = 0; i < children.length; i++) {
+        const child = children[i];
+        if(child.tagName && child.tagName.toLowerCase() === 'textevent') {
+            const rawOffset = child.getAttribute('timeoffset');
+            const rawLoc    = child.getAttribute('locIndex');
+            const message   = child.getAttribute('message');
+
+            const timeoffset = parseInt(rawOffset);
+            const locIndex   = rawLoc === null ? undefined : parseInt(rawLoc);
+
+            if(isNaN(timeoffset) || !exists(message)) continue;
+
+            const ev = {timeoffset, message};
+            if(exists(locIndex) && !isNaN(locIndex)) ev.locIndex = locIndex;
+            out.push(ev);
+        }
+    }
+
+    return out;
+}
+
+function withTextEvents(interval, element) {
+    if(exists(element.textevents) && !empty(element.textevents)) {
+        interval.textevents = element.textevents;
+    }
+    return interval;
+}
+
 function Step(element) {
     const spec = {
         element: element,
-        filter:  (key) => !equals(key, 'element'),
+        filter:  (key) => !equals(key, 'element') && !equals(key, 'textevents'),
         toName:  (key) => key.toLowerCase(),
     };
 
@@ -153,16 +187,21 @@ function Element(args = {}) {
             acc[key] = value;
         }
 
+        const textevents = readTextEvents(el);
+        if(!empty(textevents)) {
+            acc.textevents = textevents;
+        }
+
         return acc;
     }
 
     function write(args = {}) {
-        let { content, ...attributes } = args;
+        let { content, textevents, ...attributes } = args;
 
         content = existance(args.content, defaults.content);
 
         const attrsString = Object.keys(attributes).reduce((acc, key) => {
-            acc += ` ${key}="${args[key]}"`;
+            acc += ` ${key}="${attributes[key]}"`;
             return acc;
         }, '');
 
@@ -178,10 +217,10 @@ function Element(args = {}) {
         const duration = calcDuration(element);
         const step = Step(element);
 
-        return {
+        return withTextEvents({
             duration: duration,
             steps:    [step],
-        };
+        }, element);
     }
 
     function defaultFromInterval(interval) {
@@ -247,7 +286,50 @@ function IntervalsT(args = {}) {
             return acc;
         })([]);
 
+        distributeTextEvents(steps, element.textevents);
+
         return steps;
+    }
+
+    function distributeTextEvents(subIntervals, textevents) {
+        if(!exists(textevents) || empty(textevents)) return;
+        if(empty(subIntervals)) return;
+
+        const starts = [];
+        let cumulative = 0;
+        for(let i = 0; i < subIntervals.length; i++) {
+            starts.push(cumulative);
+            cumulative += subIntervals[i].duration;
+        }
+        const totalDuration = cumulative;
+
+        for(const ev of textevents) {
+            const t = ev.timeoffset;
+            let idx;
+
+            if(t < 0) {
+                idx = 0;
+            } else if(t >= totalDuration) {
+                idx = subIntervals.length - 1;
+            } else {
+                idx = 0;
+                for(let i = 0; i < subIntervals.length; i++) {
+                    if(t >= starts[i] && t < starts[i] + subIntervals[i].duration) {
+                        idx = i;
+                        break;
+                    }
+                }
+            }
+
+            const local = Math.max(0, t - starts[idx]);
+            const localEv = {timeoffset: local, message: ev.message};
+            if(exists(ev.locIndex)) localEv.locIndex = ev.locIndex;
+
+            if(!exists(subIntervals[idx].textevents)) {
+                subIntervals[idx].textevents = [];
+            }
+            subIntervals[idx].textevents.push(localEv);
+        }
     }
 
     return Element(spec);
@@ -305,13 +387,13 @@ function FreeRide(args = {}) {
         }
 
         if(exists(track)) {
-            return {distance: trackDistance, steps: steps};
+            return withTextEvents({distance: trackDistance, steps: steps}, element);
         }
 
-        return {
+        return withTextEvents({
             duration: duration,
             steps: steps,
-        };
+        }, element);
 
     }
 
@@ -366,10 +448,10 @@ function Warmup(args = {}) {
             return step;
         });
 
-        return {
+        return withTextEvents({
             duration: duration,
             steps: fixedSteps,
-        };
+        }, element);
     }
 
     function fromInterval(interval) {
@@ -425,10 +507,10 @@ function Cooldown(args = {}) {
             return step;
         });
 
-        return {
+        return withTextEvents({
             duration: duration,
             steps: fixedSteps,
-        };
+        }, element);
     }
 
     function fromInterval(interval) {
@@ -504,10 +586,10 @@ function SteadyState(args = {}) {
             step = Step(element);
         }
 
-        return {
+        return withTextEvents({
             duration: duration,
             steps: [step],
-        };
+        }, element);
     }
 
     return Element(spec);
