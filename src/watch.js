@@ -3,6 +3,7 @@ import { kphToMps, mpsToKph, timeDiff, pad } from './utils.js';
 import { models } from './models/models.js';
 import { ControlMode, } from './ble/enums.js';
 import { TimerStatus, EventType, } from './activity/enums.js';
+import { findNextChange } from './workouts/preview.js';
 
 // const timer = new Worker('./timer.js');
 const timer = new Worker(new URL('./timer.js', import.meta.url));
@@ -37,6 +38,12 @@ class Watch {
         this._lastFiredEventIndex = -1;
         this._messageId           = 0;
 
+        // target preview look-ahead state
+        this.ftp                   = 200;
+        this._lastPowerPreview     = null;
+        this._lastCadencePreview   = null;
+        this._lastSlopePreview     = null;
+
         this.init();
     }
     init() {
@@ -51,6 +58,7 @@ class Watch {
         xf.sub('db:intervalIndex',   index => { self.intervalIndex = index; });
         xf.sub('db:stepIndex',       index => { self.stepIndex     = index; });
         xf.sub('db:watchStatus',     state => { self.state         = state; });
+        xf.sub('db:ftp',               ftp => { self.ftp           = ftp; });
         xf.sub('db:workoutStatus',   state => {
             self.stateWorkout = state;
 
@@ -61,6 +69,7 @@ class Watch {
                 xf.dispatch('ui:mode-set', ControlMode.sim);
                 self.resetTextEvents();
                 self.clearWorkoutMessage();
+                self.clearTargetPreviews();
                 console.log(`Workout done!`);
             }
         });
@@ -196,6 +205,7 @@ class Watch {
 
             self.resetTextEvents();
             self.processTextEvents(0);
+            self.processTargetPreviews();
         }
 
         if(exists(self.points)) {
@@ -269,6 +279,7 @@ class Watch {
 
             self.resetTextEvents();
             self.clearWorkoutMessage();
+            self.clearTargetPreviews();
         }
     }
     onTick() {
@@ -303,6 +314,10 @@ class Watch {
             this.isIntervalType('duration')) {
 
             self.step();
+        }
+
+        if(self.isWorkoutStarted()) {
+            self.processTargetPreviews();
         }
     }
     lap() {
@@ -418,6 +433,7 @@ class Watch {
         xf.dispatch('watch:stepTime',     stepDuration);
         xf.dispatch('watch:stepIndex',    stepIndex);
         xf.dispatch('watch:step');
+        this.processTargetPreviews();
     }
     resetTextEvents() {
         this._lastFiredEventIndex = -1;
@@ -454,6 +470,50 @@ class Watch {
             });
         }
     }
+    processTargetPreviews() {
+        if(!this.isWorkoutStarted()) return;
+        if(!exists(this.intervals) || empty(this.intervals)) return;
+
+        const ctx = {
+            intervals:     this.intervals,
+            intervalIndex: this.intervalIndex,
+            stepIndex:     this.stepIndex,
+            stepTime:      this.stepTime,
+        };
+
+        const power   = findNextChange({...ctx, field: 'power'});
+        const cadence = findNextChange({...ctx, field: 'cadence'});
+        const slope   = findNextChange({...ctx, field: 'slope'});
+
+        const powerPayload = power ? {
+            value:        models.ftp.toAbsolute(power.value, this.ftp),
+            secondsUntil: power.secondsUntil,
+        } : null;
+        const cadencePayload = cadence ? {
+            value:        Math.round(cadence.value),
+            secondsUntil: cadence.secondsUntil,
+        } : null;
+        const slopePayload = slope ? {
+            value:        slope.value,
+            secondsUntil: slope.secondsUntil,
+        } : null;
+
+        this.dispatchPreviewIfChanged('powerTargetPreview',   powerPayload,   '_lastPowerPreview');
+        this.dispatchPreviewIfChanged('cadenceTargetPreview', cadencePayload, '_lastCadencePreview');
+        this.dispatchPreviewIfChanged('slopeTargetPreview',   slopePayload,   '_lastSlopePreview');
+    }
+    dispatchPreviewIfChanged(eventKey, payload, cacheKey) {
+        const prev = this[cacheKey];
+        if(prev === null && payload === null) return;
+        if(prev !== null && payload !== null && prev.value === payload.value) return;
+        this[cacheKey] = payload;
+        xf.dispatch(`watch:${eventKey}`, payload);
+    }
+    clearTargetPreviews() {
+        this.dispatchPreviewIfChanged('powerTargetPreview',   null, '_lastPowerPreview');
+        this.dispatchPreviewIfChanged('cadenceTargetPreview', null, '_lastCadencePreview');
+        this.dispatchPreviewIfChanged('slopeTargetPreview',   null, '_lastSlopePreview');
+    }
 }
 
 // These regs have access to the global db state and can mutate it
@@ -463,6 +523,9 @@ xf.reg('watch:lapTime',        (time, db) => db.lapTime          = time);
 xf.reg('watch:stepTime',       (time, db) => db.stepTime         = time);
 xf.reg('watch:intervalIndex', (index, db) => db.intervalIndex    = index);
 xf.reg('watch:workoutMessage', (payload, db) => db.workoutMessage = payload);
+xf.reg('watch:powerTargetPreview',   (payload, db) => db.powerTargetPreview   = payload);
+xf.reg('watch:cadenceTargetPreview', (payload, db) => db.cadenceTargetPreview = payload);
+xf.reg('watch:slopeTargetPreview',   (payload, db) => db.slopeTargetPreview   = payload);
 xf.reg('watch:stepIndex',     (index, db) => {
     db.stepIndex         = index;
     const intervalIndex  = db.intervalIndex;

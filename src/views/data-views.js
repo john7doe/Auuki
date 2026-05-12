@@ -402,6 +402,27 @@ class CadenceTarget extends DataView {
 customElements.define('cadence-target', CadenceTarget);
 
 
+class CadenceTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:cadenceTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        if(state.value === 0) return '→ –';
+        return `→ ${state.value}`;
+    }
+}
+
+customElements.define('cadence-target-preview', CadenceTargetPreview);
+
+
 class CadenceGroup extends DataView {
     getDefaults() {
         return {
@@ -608,6 +629,25 @@ class PowerTarget extends DataView {
 
 customElements.define('power-target', PowerTarget);
 
+class PowerTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:powerTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        return `→ ${state.value}`;
+    }
+}
+
+customElements.define('power-target-preview', PowerTargetPreview);
+
 class PowerTargetFTP extends DataView {
     getDefaults() {
         return {
@@ -740,6 +780,26 @@ class SlopeTarget extends DataView {
 }
 
 customElements.define('slope-target', SlopeTarget);
+
+
+class SlopeTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:slopeTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        return `→ ${state.value.toFixed(1)}`;
+    }
+}
+
+customElements.define('slope-target-preview', SlopeTargetPreview);
 
 
 class PowerTargetControl extends DataView {

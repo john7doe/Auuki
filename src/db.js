@@ -94,6 +94,9 @@ let db = {
     intervalDuration: 0,
     stepDuration: 0,
     workoutMessage: {message: '', ttl: 0, id: 0},
+    powerTargetPreview: null,
+    cadenceTargetPreview: null,
+    slopeTargetPreview: null,
     watchStatus: TimerStatus.stopped,
     workoutStatus: TimerStatus.stopped,
 
