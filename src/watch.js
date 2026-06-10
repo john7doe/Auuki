@@ -32,6 +32,11 @@ class Watch {
         this.hasBeenAutoPaused = false;
         this.autoPause         = true;
         this.autoStart         = true;
+
+        // textevent dispatcher state
+        this._lastFiredEventIndex = -1;
+        this._messageId           = 0;
+
         this.init();
     }
     init() {
@@ -54,6 +59,8 @@ class Watch {
                 // reset to slope mode 0% when workout is done
                 xf.dispatch('ui:slope-target-set', 0);
                 xf.dispatch('ui:mode-set', ControlMode.sim);
+                self.resetTextEvents();
+                self.clearWorkoutMessage();
                 console.log(`Workout done!`);
             }
         });
@@ -186,6 +193,9 @@ class Watch {
             xf.dispatch('watch:stepDuration',     stepTime);
             xf.dispatch('watch:lapTime',          intervalTime);
             xf.dispatch('watch:stepTime',         stepTime);
+
+            self.resetTextEvents();
+            self.processTextEvents(0);
         }
 
         if(exists(self.points)) {
@@ -256,6 +266,9 @@ class Watch {
             }
             xf.dispatch('watch:elapsed', 0);
             xf.dispatch('watch:lapTime', 0);
+
+            self.resetTextEvents();
+            self.clearWorkoutMessage();
         }
     }
     onTick() {
@@ -277,6 +290,13 @@ class Watch {
         xf.dispatch('watch:elapsed',  elapsed);
         xf.dispatch('watch:lapTime',  lapTime);
         xf.dispatch('watch:stepTime', stepTime);
+
+        if(self.isWorkoutStarted()) {
+            const interval = self.intervals[self.intervalIndex];
+            if(exists(interval) && exists(interval.duration)) {
+                self.processTextEvents(interval.duration - lapTime);
+            }
+        }
 
         if(self.isWorkoutStarted() &&
            (stepTime <= 0) &&
@@ -389,12 +409,50 @@ class Watch {
         xf.dispatch('watch:lapTime',          intervalDuration);
         xf.dispatch('watch:intervalIndex',    intervalIndex);
         xf.dispatch('watch:lap');
+
+        this.resetTextEvents();
+        this.processTextEvents(0);
     }
     dispatchStep(stepDuration, stepIndex) {
         xf.dispatch('watch:stepDuration', stepDuration);
         xf.dispatch('watch:stepTime',     stepDuration);
         xf.dispatch('watch:stepIndex',    stepIndex);
         xf.dispatch('watch:step');
+    }
+    resetTextEvents() {
+        this._lastFiredEventIndex = -1;
+    }
+    clearWorkoutMessage() {
+        this._messageId += 1;
+        xf.dispatch('watch:workoutMessage', {message: '', ttl: 0, id: this._messageId});
+    }
+    processTextEvents(intervalElapsed) {
+        const interval = this.intervals[this.intervalIndex];
+        if(!exists(interval)) return;
+        const events = interval.textevents;
+        if(!exists(events) || empty(events)) return;
+
+        while(
+            (this._lastFiredEventIndex + 1) < events.length &&
+            events[this._lastFiredEventIndex + 1].timeoffset <= intervalElapsed
+        ) {
+            this._lastFiredEventIndex += 1;
+            const ev = events[this._lastFiredEventIndex];
+            const nextEv = events[this._lastFiredEventIndex + 1];
+
+            const remainingInInterval = interval.duration - ev.timeoffset;
+            const untilNext = exists(nextEv)
+                ? (nextEv.timeoffset - ev.timeoffset)
+                : remainingInInterval;
+            const ttl = Math.max(1, Math.min(10, untilNext));
+
+            this._messageId += 1;
+            xf.dispatch('watch:workoutMessage', {
+                message: ev.message,
+                ttl:     ttl,
+                id:      this._messageId,
+            });
+        }
     }
 }
 
@@ -404,6 +462,7 @@ xf.reg('watch:stepDuration',   (time, db) => db.stepDuration     = time);
 xf.reg('watch:lapTime',        (time, db) => db.lapTime          = time);
 xf.reg('watch:stepTime',       (time, db) => db.stepTime         = time);
 xf.reg('watch:intervalIndex', (index, db) => db.intervalIndex    = index);
+xf.reg('watch:workoutMessage', (payload, db) => db.workoutMessage = payload);
 xf.reg('watch:stepIndex',     (index, db) => {
     db.stepIndex         = index;
     const intervalIndex  = db.intervalIndex;
