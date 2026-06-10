@@ -3,8 +3,11 @@
 # Auuki
 Auuki is a powerful, no-nonsense app built for hammering out **structured workouts** on a smart trainer, right in your browser. No installs, no dependencies, no slow updates taking from precious training time.
 
+**My hacked in changes**
+* Run Zwift **.ZWO workouts** with in-workout **textevent cue messages** displayed as a banner over the workout graph
+* **15-second target preview** — see the next power, cadence, and slope targets inline before each transition
+
 **Key Features**:
-* Run Zwift **.ZWO workouts**
 * Connect via **Bluetooth** to smart trainers, power meters, heart rate monitors, the moxy monitor, and many more
 * Full control with **ERG mode**, **Grade Simulation**, and **Resistance mode**
 * Workouts with **Slope-based targets** for realistic effort control
