@@ -28,3 +28,5 @@ jobs:
         run: npm run build
       - name: Install API dependencies
         run: npm install --prefix api
+      - name: Test (passing suites)
+        run: npm run test:ci
