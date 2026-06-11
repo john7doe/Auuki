@@ -13,3 +13,6 @@ env.js
 package-lock.json
 .parcel-cache/
 
+/api/node_modules/
+/api/local.settings.json
+
