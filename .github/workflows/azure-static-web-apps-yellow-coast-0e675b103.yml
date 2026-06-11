@@ -24,6 +24,9 @@ jobs:
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
+        env:
+          # Public Cloudflare Turnstile site key, inlined into the build by Parcel.
+          TURNSTILE_SITE_KEY: "0x4AAAAAADivxD45Libwl9YF"
         with:
           #azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_YELLOW_COAST_0E675B103 }}
           #repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
