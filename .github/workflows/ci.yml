@@ -14,9 +14,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     name: Build
-    # The date tests in test/utils.test.js assume the author's local timezone.
-    env:
-      TZ: Europe/Helsinki
     steps:
       - uses: actions/checkout@v4
         with:
