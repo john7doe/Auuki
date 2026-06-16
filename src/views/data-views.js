@@ -1527,10 +1527,18 @@ class OAuth extends HTMLElement {
 
         this.$stravaButton = self.querySelector('#strava--connect--button');
         this.$intervalsButton = self.querySelector('#intervals--connect--button');
+        this.$intervalsApiKeyInput = self.querySelector('#intervals--api-key--input');
         this.$tpButton = self.querySelector('#tp--connect--button');
 
         xf.sub('action:oauth', self.onAction.bind(this), this.signal);
         xf.sub('db:services', self.onServices.bind(this), this.signal);
+
+        // reflect the stored Intervals.icu API key on first render
+        this.services.intervals = models.api.intervals.hasKey();
+        if(exists(this.$intervalsApiKeyInput)) {
+            this.$intervalsApiKeyInput.value = models.api.intervals.getKey() ?? '';
+        }
+        this.render(this.services);
     }
     disconnectedCallback() {
         this.abortController.abort();
@@ -1545,8 +1553,21 @@ class OAuth extends HTMLElement {
 
         let service = action.split(':')[1];
 
+        if(service === 'intervals') {
+            if(models.api.intervals.hasKey()) {
+                models.api.intervals.disconnect();
+                if(exists(this.$intervalsApiKeyInput)) {
+                    this.$intervalsApiKeyInput.value = '';
+                }
+            } else {
+                const key = exists(this.$intervalsApiKeyInput) ?
+                      this.$intervalsApiKeyInput.value : '';
+                models.api.intervals.connect(key);
+            }
+            return;
+        }
+
         if(service === 'strava' ||
-           service === 'intervals' ||
            service === 'trainingPeaks') {
 
             console.log(this.services[service]);

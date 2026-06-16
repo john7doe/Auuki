@@ -292,11 +292,13 @@ function Auth(args = {}) {
 
                 config.setServices(body.result.services);
                 strava.update();
-                intervals.update();
                 trainingPeaks.update();
 
                 xf.dispatch('action:auth', ':password:profile');
                 xf.dispatch('services', body?.result);
+                // assert the key-derived Intervals.icu state last so it wins
+                // over the backend services flag
+                intervals.update();
                 return body.result;
             }
             if(status === 403) {

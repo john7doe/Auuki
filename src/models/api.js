@@ -14,6 +14,8 @@ function API() {
     const router = Router();
 
     async function start() {
+        // initialise the Intervals.icu connection state from the stored API key
+        intervals.update();
         router.start();
     }
 
@@ -81,9 +83,6 @@ function Router(args = {}) {
 
             if(service === OAuthService.strava) {
                 await strava.paramsHandler({state, code, scope});
-            }
-            if(service === OAuthService.intervals) {
-                await intervals.paramsHandler({state, code, scope});
             }
             if(service === OAuthService.trainingPeaks) {
                 await trainingPeaks.paramsHandler({state, code, scope});
