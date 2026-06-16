@@ -14,21 +14,11 @@ jobs:
         with:
           submodules: true
           lfs: false
-      - name: Get GitHub OIDC token
-        id: idtoken
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const t = await core.getIDToken();
-            core.setOutput('token', t);
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
-        env:
-          # Public Cloudflare Turnstile site key, inlined into the build by Parcel.
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
         with:
-          #azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_YELLOW_COAST_0E675B103 }}
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_YELLOW_COAST_0E675B103 }}
           #repo_token: ${{ secrets.GITHUB_TOKEN }} # Used for Github integrations (i.e. PR comments)
           action: "upload"
           ###### Repository/Build Configurations - These values can be configured to match your app requirements. ######
@@ -36,9 +26,7 @@ jobs:
           app_location: "/" # App source code path
           api_location: "api" # Api source code path - optional
           output_location: "dist" # Built app content directory - optional
-          github_id_token: ${{ steps.idtoken.outputs.token }}
           ###### End of Repository/Build Configurations ######
 
 permissions:
-  id-token: write        # required to mint the GitHub OIDC token
   contents: read
