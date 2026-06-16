@@ -10,9 +10,10 @@
     "source": "src/index.html",
     "scripts": {
         "test": "jest",
+        "test:ci": "jest test/ant test/models test/watch test/workouts test/ble/common test/ble/ct test/ble/heart-rate-measurement test/ble/indoor-bike-data test/ble/wcps test/storage/local-storage test/physics test/utils",
         "start": "parcel",
         "starttls": "parcel --cert ./dev_cert/cert.pem --key ./dev_cert/key.pem",
-        "build": "parcel build"
+        "build": "parcel build && cp staticwebapp.config.json dist/"
     },
     "dependencies": {
         "@babel/core": "^7.13.13",

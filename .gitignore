@@ -13,3 +13,11 @@ env.js
 package-lock.json
 .parcel-cache/
 
+# Parcel build-time env files (may contain non-public values); keep the example
+.env
+.env.*
+!.env.example
+
+/api/node_modules/
+/api/local.settings.json
+
