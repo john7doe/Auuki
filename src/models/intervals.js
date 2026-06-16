@@ -1,102 +1,84 @@
-import { xf, once, print, exists, } from '../functions.js';
+import { xf, exists, } from '../functions.js';
 import { isoDate, } from '../utils.js';
-import { OAuthService, DialogMsg, stateParam, } from './enums.js';
-import config from './config.js';
+import { DialogMsg, } from './enums.js';
+import { LocalStorageItem } from '../storage/local-storage.js';
+
+// Intervals.icu uses HTTP Basic auth: the username is the literal string
+// "API_KEY" and the password is the athlete's personal API key (found under
+// Settings -> Developer on intervals.icu). Athlete id 0 refers to the
+// authenticated key owner. CORS is enabled, so the browser calls the API
+// directly with no backend proxy.
+const intervalsApi = 'https://intervals.icu/api/v1';
+const intervalsAthleteId = '0';
+
+function utf8ToBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+}
 
 function Intervals(args = {}) {
-    const serviceName = OAuthService.intervals;
-    const api_uri = config.get().API_URI;
-    const pwa_uri = config.get().PWA_URI;
-    let intervals_client_id = config.get().INTERVALS_CLIENT_ID;
+    const apiKeyStorage = LocalStorageItem({
+        key: 'intervals-api-key',
+        fallback: '',
+    });
 
+    let apiKey = apiKeyStorage.restore();
+
+    function hasKey() {
+        return exists(apiKey) && `${apiKey}`.trim() !== '';
+    }
+
+    function getKey() {
+        return apiKey;
+    }
+
+    function headers(extra = {}) {
+        return Object.assign(
+            { 'Authorization': 'Basic ' + btoa(`API_KEY:${apiKey}`) },
+            extra,
+        );
+    }
+
+    function onNoAuth() {
+        console.log(`:intervals :no-auth`);
+        xf.dispatch('ui:modal:error:open', DialogMsg.noAuth);
+    }
+
+    // re-read the stored key and broadcast the connection state
     const update = function() {
-        intervals_client_id = config.get().INTERVALS_CLIENT_ID;
+        apiKey = apiKeyStorage.get();
+        xf.dispatch('services', { intervals: hasKey() });
     };
 
-    // Step D
-    async function connect() {
-        const scope = 'ACTIVITY:WRITE,CALENDAR:READ,SETTINGS:READ';
-        const state = stateParam.encode(serviceName);
-        stateParam.store(state);
-
-        const url =
-              'https://intervals.icu/oauth/authorize' +
-              '?' +
-              new URLSearchParams({
-                  client_id: intervals_client_id,
-                  redirect_uri: pwa_uri,
-                  scope,
-                  state,
-              }).toString();
-
-        window.location.replace(url);
-    }
-
-    async function disconnect() {
-        // TODO:
-        // try {
-        //     const stravaResponse = await fetch(
-        //         "https://intervals.icu/api/v1/disconnect-app",
-        //         {method: 'DELETE',}
-        //     );
-        //     console.log(`:oauth :intervals :disconnect`);
-        //     const stravaBody = await stravaResponse.text();
-
-        //     const apiResponse = await fetch(
-        //         api_uri+`/api/intervals/deauthorize`,
-        //         {method: 'POST', credentials: 'include',},
-        //     );
-
-        //     const apiBody = await apiResponse.text();
-
-        //     xf.dispatch(`services`, {intervals: false});
-        // } catch (e) {
-        //     console.log(`:intervals :deauthorize :error `, e);
-        // }
-
-        // fallback since it seems deauthorize it supported only from
-        // the Intervals.icu settings page
-        await connect();
-    }
-
-    // Step 3
-    async function paramsHandler(args = {}) {
-        const state = args.state ?? '';
-        const code = args.code ?? '';
-        const scope = args.scope ?? '';
-
-        const url = `${api_uri}/api/intervals/oauth/code` +
-              '?' +
-              new URLSearchParams({
-                  state: state,
-                  code: code,
-                  scope: scope,
-              })
-              .toString();
-
-        try {
-            const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
-            });
-
-            const result = await response.text();
-            console.log(`:oauth :intervals :connnect`);
-            xf.dispatch(`services`, {intervals: true});
-            clearParams();
-        } catch (e) {
-            console.log(``, e);
+    // String -> Void
+    // store the user supplied API key and mark the service connected
+    async function connect(key) {
+        const value = `${key ?? ''}`.trim();
+        if(value === '') {
+            console.log(`:intervals :connect :no-key`);
+            return;
         }
+        apiKey = apiKeyStorage.set(value);
+        console.log(`:intervals :connect`);
+        xf.dispatch('services', { intervals: true });
     }
 
-    function clearParams() {
-        window.history.pushState({}, document.title, window.location.pathname);
+    // clear the stored API key and mark the service disconnected
+    async function disconnect() {
+        apiKeyStorage.remove();
+        apiKey = '';
+        console.log(`:intervals :disconnect`);
+        xf.dispatch('services', { intervals: false });
     }
 
     async function uploadWorkout(record) {
         const blob = record.blob;
         const workoutName = record.summary?.name ?? 'Powered by Auuki workout';
-        const url = `${api_uri}/api/intervals/upload`;
+        const url = `${intervalsApi}/athlete/${intervalsAthleteId}/activities`;
+
+        if(!hasKey()) {
+            onNoAuth();
+            return ':fail';
+        }
 
         const formData = new FormData();
         formData.append('file', blob);
@@ -105,18 +87,15 @@ function Intervals(args = {}) {
         try {
             const response = await fetch(url, {
                 method: 'POST',
-                credentials: 'include',
+                headers: headers(),
                 body: formData,
             });
 
             if(response.ok) {
                 return ':success';
             } else {
-                if(response.status === 403) {
-                    console.log(`:api :no-auth`);
-                    xf.dispatch('action:auth', ':password:login');
-
-                    xf.dispatch('ui:modal:error:open', DialogMsg.noAuth);
+                if(response.status === 401 || response.status === 403) {
+                    onNoAuth();
                 }
                 return ':fail';
             }
@@ -126,36 +105,40 @@ function Intervals(args = {}) {
         }
     }
 
-    /*
-    async function wod() {
-        const oldest = isoDate();
-        const newest = isoDate();
+    // String, String -> [{id, start_date_local, workout_file_base64}]
+    // Fetch planned workout events for the date range and download each as a
+    // .zwo, preserving the base64 shape the planned model expects.
+    async function wod(oldest = isoDate(), newest = isoDate()) {
+        if(!hasKey()) {
+            xf.dispatch('action:planned', ':intervals:wod:fail');
+            onNoAuth();
+            return [];
+        }
 
-        const url = `${api_uri}/api/intervals/events` +
+        const url = `${intervalsApi}/athlete/${intervalsAthleteId}/events` +
               '?' +
               new URLSearchParams({
                   oldest,
                   newest,
+                  category: 'WORKOUT',
               })
               .toString();
 
         try {
             const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
+                method: 'GET',
+                headers: headers(),
             });
 
             if(response.ok) {
-                const data = await response.json();
+                const events = await response.json();
+                const data = await eventsToWorkouts(events);
                 xf.dispatch('action:planned', ':intervals:wod:success');
-                console.log(data);
-                return data.filter((item) => exists(item.workout_file_base64));
+                return data;
             } else {
                 xf.dispatch('action:planned', ':intervals:wod:fail');
-                if(response.status === 403) {
-                    console.log(`:api :no-auth`);
-                    xf.dispatch('action:auth', ':password:login');
-                    xf.dispatch('ui:modal:error:open', DialogMsg.noAuth);
+                if(response.status === 401 || response.status === 403) {
+                    onNoAuth();
                 }
                 return [];
             }
@@ -165,43 +148,44 @@ function Intervals(args = {}) {
             return [];
         }
     }
-    */
 
-    // String, String -> Void
-    // "", ""
-    async function wod(oldest = isoDate(), newest = isoDate()) {
-        const url = `${api_uri}/api/intervals/events` +
-              '?' +
-              new URLSearchParams({
-                  oldest,
-                  newest,
-              })
-              .toString();
+    // [Event] -> [{id, start_date_local, workout_file_base64}]
+    async function eventsToWorkouts(events = []) {
+        const workouts = [];
+
+        for(let event of events) {
+            if(event.category !== 'WORKOUT') continue;
+
+            const zwo = await downloadWorkout(event.id);
+            if(!exists(zwo)) continue;
+
+            workouts.push({
+                id: event.id,
+                start_date_local: event.start_date_local,
+                workout_file_base64: utf8ToBase64(zwo),
+            });
+        }
+
+        return workouts;
+    }
+
+    // Int -> String | undefined
+    async function downloadWorkout(eventId) {
+        const url =
+              `${intervalsApi}/athlete/${intervalsAthleteId}/events/${eventId}/download.zwo`;
 
         try {
             const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
+                method: 'GET',
+                headers: headers(),
             });
 
-            if(response.ok) {
-                const data = await response.json();
-                xf.dispatch('action:planned', ':intervals:wod:success');
-                console.log(data);
-                return data.filter((item) => exists(item.workout_file_base64));
-            } else {
-                xf.dispatch('action:planned', ':intervals:wod:fail');
-                if(response.status === 403) {
-                    console.log(`:api :no-auth`);
-                    xf.dispatch('action:auth', ':password:login');
-                    xf.dispatch('ui:modal:error:open', DialogMsg.noAuth);
-                }
-                return [];
-            }
+            if(!response.ok) return undefined;
+
+            return await response.text();
         } catch(error) {
-            xf.dispatch('action:planned', ':intervals:wod:fail');
             console.log(error);
-            return [];
+            return undefined;
         }
     }
 
@@ -295,12 +279,17 @@ function Intervals(args = {}) {
         //         max_hr: Int,
         //     }]
         // }
-        const url = `${api_uri}/api/intervals/athlete`;
+        const url = `${intervalsApi}/athlete/${intervalsAthleteId}`;
+
+        if(!hasKey()) {
+            xf.dispatch('action:athlete', ':intervals:athlete:fail');
+            return athleteToSettings();
+        }
 
         try {
             const response = await fetch(url, {
-                method: 'POST',
-                credentials: 'include',
+                method: 'GET',
+                headers: headers(),
             });
 
             if(response.ok) {
@@ -310,10 +299,8 @@ function Intervals(args = {}) {
                 return athleteToSettings(data);
             } else {
                 xf.dispatch('action:athlete', ':intervals:athlete:fail');
-                if(response.status === 403) {
-                    console.log(`:api :no-auth`);
-                    xf.dispatch('action:auth', ':password:login');
-                    xf.dispatch('ui:modal:error:open', DialogMsg.noAuth);
+                if(response.status === 401 || response.status === 403) {
+                    onNoAuth();
                 }
                 return athleteToSettings();
             }
@@ -327,12 +314,13 @@ function Intervals(args = {}) {
     return Object.freeze({
         connect,
         disconnect,
-        paramsHandler,
         uploadWorkout,
         update,
         wod,
         getAthlete,
         athleteToSettings,
+        hasKey,
+        getKey,
 
         wodMock,
     });
