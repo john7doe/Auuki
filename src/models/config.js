@@ -9,7 +9,11 @@ class Config {
             // PWA_URI: "http://localhost:1234",
             // API_URI: "http://localhost:8080",
             PWA_URI: window.location.origin ?? "https://auuki.com",
-            API_URI: "https://api.auuki.com",
+            // Same-origin managed API of the Static Web App (Azure Functions
+            // under /api/*). Empty base => relative /api/* requests, so the
+            // session cookie works without CORS. Use a localhost base above for
+            // local dev against an external API.
+            API_URI: "",
             // Public Cloudflare Turnstile site key. Build-time configurable via
             // the TURNSTILE_SITE_KEY env var (e.g. a Parcel .env file), falling
             // back to the default widget when unset.
