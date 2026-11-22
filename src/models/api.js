@@ -11,6 +11,7 @@ function API() {
     const router = Router();
 
     async function start() {
+        intervals.update();
         router.start();
     }
 
@@ -31,23 +32,16 @@ function API() {
 function Router(args = {}) {
 
     async function start() {
-        const secrets = takeSecretsFromAddress();
         const status = await auth.status();
 
-        if(secrets.verify !== '') {
-            xf.dispatch('ui:page-set', 'settings');
-            xf.dispatch('action:nav', 'settings:profile');
-            await auth.verifyEmail(secrets.verify);
-            return;
-        }
-        if(secrets.token !== '') {
+        const params = getParams();
+        if(params.get('token')) {
             xf.dispatch('ui:page-set', 'settings');
             xf.dispatch('action:nav', 'settings:profile');
             xf.dispatch('action:auth', ':password:reset');
             return;
         }
 
-        const params = getParams();
         if(hasParams(params)) {
             await onQueryParams(params);
         } else {
@@ -96,26 +90,12 @@ function Router(args = {}) {
             if(equals(service, OAuthService.strava)) {
                 await strava.paramsHandler({state, code, scope});
             }
-            if(equals(service, OAuthService.intervals)) {
-                await intervals.paramsHandler({state, code, scope});
-            }
             if(equals(service, OAuthService.trainingPeaks)) {
                 await trainingPeaks.paramsHandler({state, code, scope});
             }
             return true;
         }
         return false;
-    }
-
-    function takeSecretsFromAddress() {
-        const secrets = auth.readAuthSecrets(String(document.location.href));
-        if(secrets.token !== '') {
-            auth.holdResetToken(secrets.token);
-        }
-        if(secrets.clear) {
-            window.history.replaceState({}, document.title, secrets.pathname);
-        }
-        return secrets;
     }
 
     function clearParams() {

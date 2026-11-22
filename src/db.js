@@ -95,6 +95,9 @@ let db = {
     stepIndex: 0,
     intervalDuration: 0,
     stepDuration: 0,
+    powerTargetPreview: null,
+    cadenceTargetPreview: null,
+    slopeTargetPreview: null,
     watchStatus: TimerStatus.stopped,
     workoutStatus: TimerStatus.stopped,
 

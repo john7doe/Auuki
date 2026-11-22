@@ -1,0 +1,19 @@
+{
+    "IsEncrypted": false,
+    "Values": {
+        "FUNCTIONS_WORKER_RUNTIME": "node",
+        "AzureWebJobsStorage": "",
+
+        "COSMOS_ENDPOINT": "https://<your-account>.documents.azure.com:443/",
+        "COSMOS_KEY": "<cosmos-primary-key>",
+        "COSMOS_DATABASE": "auuki",
+        "COSMOS_USERS_CONTAINER": "users",
+
+        "SESSION_SECRET": "<long-random-string>",
+        "TURNSTILE_SECRET": "<cloudflare-turnstile-secret>",
+
+        "STRAVA_CLIENT_ID": "",
+        "INTERVALS_CLIENT_ID": "",
+        "TRAINING_PEAKS_CLIENT_ID": ""
+    }
+}

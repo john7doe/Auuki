@@ -1,0 +1,12 @@
+{
+    "name": "auuki-api",
+    "version": "1.0.0",
+    "description": "Auuki backend as Azure Functions (Static Web Apps managed API).",
+    "private": true,
+    "engines": {
+        "node": ">=18"
+    },
+    "dependencies": {
+        "@azure/cosmos": "^4.2.0"
+    }
+}

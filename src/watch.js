@@ -3,6 +3,7 @@ import { kphToMps, mpsToKph, timeDiff, pad } from './utils.js';
 import { models } from './models/models.js';
 import { ControlMode, } from './ble/enums.js';
 import { TimerStatus, EventType, } from './activity/enums.js';
+import { findNextChange } from './workouts/preview.js';
 
 const timer = new Worker(new URL('./timer.js', import.meta.url), {type: 'module'});
 
@@ -33,6 +34,10 @@ class Watch {
         this.hasBeenAutoPaused = false;
         this.autoPause         = true;
         this.autoStart         = true;
+        this.ftp               = 200;
+        this._lastPowerPreview   = null;
+        this._lastCadencePreview = null;
+        this._lastSlopePreview   = null;
         this.init();
     }
     init() {
@@ -47,11 +52,16 @@ class Watch {
         xf.sub('db:intervalIndex',   index => { self.intervalIndex = index; });
         xf.sub('db:stepIndex',       index => { self.stepIndex     = index; });
         xf.sub('db:watchStatus',     state => { self.state         = state; });
+        xf.sub('db:ftp',               ftp => {
+            self.ftp = ftp;
+            self.processTargetPreviews();
+        });
         xf.sub('db:workoutStatus',   state => {
             self.stateWorkout = state;
 
             if(!self.isWorkoutStarted()) {
                 self.dispatchTextEvent();
+                self.clearTargetPreviews();
             }
 
             if(self.isWorkoutDone()) {
@@ -63,6 +73,7 @@ class Watch {
             }
         });
         xf.sub('db:workout',       workout => {
+            self.clearTargetPreviews();
             self.intervals  = workout.intervals;
             self.textEvents = flattenMessages(self.intervals);
             if(workout.meta.category?.toLowerCase().includes("test")) {
@@ -204,6 +215,7 @@ class Watch {
         }
 
         self.dispatchTextEvent();
+        self.processTargetPreviews();
     }
     restoreWorkout() {
         const self = this;
@@ -296,6 +308,7 @@ class Watch {
 
         // stepTime is written before stepIndex, so choose the message after step()
         self.dispatchTextEvent();
+        self.processTargetPreviews();
     }
     dispatchTextEvent() {
         let message = '';
@@ -426,6 +439,51 @@ class Watch {
         xf.dispatch('watch:stepTime',     stepDuration);
         xf.dispatch('watch:stepIndex',    stepIndex);
         xf.dispatch('watch:step');
+        this.processTargetPreviews();
+    }
+    processTargetPreviews() {
+        if(!this.isWorkoutStarted()) return;
+        if(!exists(this.intervals) || empty(this.intervals)) return;
+
+        const ctx = {
+            intervals:     this.intervals,
+            intervalIndex: this.intervalIndex,
+            stepIndex:     this.stepIndex,
+            stepTime:      this.stepTime,
+        };
+
+        const power   = findNextChange({...ctx, field: 'power'});
+        const cadence = findNextChange({...ctx, field: 'cadence'});
+        const slope   = findNextChange({...ctx, field: 'slope'});
+
+        const powerPayload = power ? {
+            value:        models.ftp.toAbsolute(power.value, this.ftp),
+            secondsUntil: power.secondsUntil,
+        } : null;
+        const cadencePayload = cadence ? {
+            value:        Math.round(cadence.value),
+            secondsUntil: cadence.secondsUntil,
+        } : null;
+        const slopePayload = slope ? {
+            value:        slope.value,
+            secondsUntil: slope.secondsUntil,
+        } : null;
+
+        this.dispatchPreviewIfChanged('powerTargetPreview',   powerPayload,   '_lastPowerPreview');
+        this.dispatchPreviewIfChanged('cadenceTargetPreview', cadencePayload, '_lastCadencePreview');
+        this.dispatchPreviewIfChanged('slopeTargetPreview',   slopePayload,   '_lastSlopePreview');
+    }
+    dispatchPreviewIfChanged(eventKey, payload, cacheKey) {
+        const prev = this[cacheKey];
+        if(prev === null && payload === null) return;
+        if(prev !== null && payload !== null && prev.value === payload.value) return;
+        this[cacheKey] = payload;
+        xf.dispatch(`watch:${eventKey}`, payload);
+    }
+    clearTargetPreviews() {
+        this.dispatchPreviewIfChanged('powerTargetPreview',   null, '_lastPowerPreview');
+        this.dispatchPreviewIfChanged('cadenceTargetPreview', null, '_lastCadencePreview');
+        this.dispatchPreviewIfChanged('slopeTargetPreview',   null, '_lastSlopePreview');
     }
 }
 
@@ -434,6 +492,9 @@ xf.reg('watch:lapDuration',    (time, db) => db.intervalDuration = time);
 xf.reg('watch:stepDuration',   (time, db) => db.stepDuration     = time);
 xf.reg('watch:lapTime',        (time, db) => db.lapTime          = time);
 xf.reg('watch:stepTime',       (time, db) => db.stepTime         = time);
+xf.reg('watch:powerTargetPreview',   (payload, db) => db.powerTargetPreview   = payload);
+xf.reg('watch:cadenceTargetPreview', (payload, db) => db.cadenceTargetPreview = payload);
+xf.reg('watch:slopeTargetPreview',   (payload, db) => db.slopeTargetPreview   = payload);
 xf.reg('watch:workoutTextEvent', (message, db) => {
     db.workoutTextEvent = message;
 });

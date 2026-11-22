@@ -1097,6 +1097,22 @@ div.graph--bar-group {
     pointer-events: none;
 }
 
+.data-tile--preview {
+    display: inline-block;
+    margin-left: 0.4em;
+    line-height: 1em;
+    font-family: var(--ssb-font-family);
+    font-size: calc(var(--data-tile--value-font-size) / 2);
+    font-weight: bold;
+    opacity: 0.55;
+    color: var(--text-color, inherit);
+    white-space: nowrap;
+}
+
+.data-tile--preview:empty {
+    display: none;
+}
+
 #workout-text-event {
     display: none;
     position: absolute;
@@ -2922,6 +2938,20 @@ dialog {
     text-align: right;
     text-transform: uppercase;
     cursor: pointer;
+}
+
+.intervals--api-key {
+    display: block;
+    padding: 0 1rem 1rem;
+}
+.intervals--api-key--input {
+    width: 100%;
+}
+.intervals--api-key--hint {
+    font-size: 0.9em;
+    opacity: 0.7;
+    margin: 0.5em 0 0;
+    text-align: left;
 }
 
 /* About */

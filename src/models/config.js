@@ -6,12 +6,18 @@ class Config {
 
     constructor() {
         this.env = {
-            // PWA_URI: "https://localhost:1234", // dev
-            // API_URI: "https://localhost:8080", // dev
-            // TURNSTILE_SITE_KEY: '1x00000000000000000000AA', // dev
-            PWA_URI: window.location.origin ?? "https://auuki.com", // live
-            API_URI: "https://api.auuki.com", // live
-            TURNSTILE_SITE_KEY: '0x4AAAAAAA2IUz1CU0EU3E-O', // live
+            // PWA_URI: "http://localhost:1234",
+            // API_URI: "http://localhost:8080",
+            PWA_URI: window.location.origin ?? "https://auuki.com",
+            // Same-origin managed API of the Static Web App (Azure Functions
+            // under /api/*). Empty base => relative /api/* requests, so the
+            // session cookie works without CORS. Use a localhost base above for
+            // local dev against an external API.
+            API_URI: "",
+            // Public Cloudflare Turnstile site key. Build-time configurable via
+            // the TURNSTILE_SITE_KEY env var (e.g. a Parcel .env file), falling
+            // back to the default widget when unset.
+            TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY || "0x4AAAAAADivxD45Libwl9YF",
             STRAVA_CLIENT_ID: this.defaultStravaClientId,
             INTERVALS_CLIENT_ID: this.defaultIntervalsClientId,
             TRAINING_PEAKS_CLIENT_ID: this.defaultTrainingPeaksClientId,

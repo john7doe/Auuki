@@ -402,6 +402,27 @@ class CadenceTarget extends DataView {
 customElements.define('cadence-target', CadenceTarget);
 
 
+class CadenceTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:cadenceTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        if(state.value === 0) return '→ –';
+        return `→ ${state.value}`;
+    }
+}
+
+customElements.define('cadence-target-preview', CadenceTargetPreview);
+
+
 class CadenceGroup extends DataView {
     getDefaults() {
         return {
@@ -630,6 +651,25 @@ class PowerTarget extends DataView {
 
 customElements.define('power-target', PowerTarget);
 
+class PowerTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:powerTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        return `→ ${state.value}`;
+    }
+}
+
+customElements.define('power-target-preview', PowerTargetPreview);
+
 class PowerTargetFTP extends DataView {
     getDefaults() {
         return {
@@ -762,6 +802,26 @@ class SlopeTarget extends DataView {
 }
 
 customElements.define('slope-target', SlopeTarget);
+
+
+class SlopeTargetPreview extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:slopeTargetPreview',
+        };
+    }
+    shouldUpdate(value) {
+        const prev = this.state && this.state.value;
+        const next = value && value.value;
+        return prev !== next && !this.disabled;
+    }
+    transform(state) {
+        if(!state) return '';
+        return `→ ${state.value.toFixed(1)}`;
+    }
+}
+
+customElements.define('slope-target-preview', SlopeTargetPreview);
 
 
 class PowerTargetControl extends DataView {
@@ -1506,10 +1566,18 @@ class OAuth extends HTMLElement {
 
         this.$stravaButton = self.querySelector('#strava--connect--button');
         this.$intervalsButton = self.querySelector('#intervals--connect--button');
+        this.$intervalsApiKeyInput = self.querySelector('#intervals--api-key--input');
         this.$tpButton = self.querySelector('#tp--connect--button');
 
         xf.sub('action:oauth', self.onAction.bind(this), this.signal);
         xf.sub('db:services', self.onServices.bind(this), this.signal);
+
+        // reflect the stored Intervals.icu API key on first render
+        this.services.intervals = models.api.intervals.hasKey();
+        if(exists(this.$intervalsApiKeyInput)) {
+            this.$intervalsApiKeyInput.value = models.api.intervals.getKey() ?? '';
+        }
+        this.render(this.services);
     }
     disconnectedCallback() {
         this.abortController.abort();
@@ -1524,8 +1592,21 @@ class OAuth extends HTMLElement {
 
         let service = action.split(':')[1];
 
+        if(service === 'intervals') {
+            if(models.api.intervals.hasKey()) {
+                models.api.intervals.disconnect();
+                if(exists(this.$intervalsApiKeyInput)) {
+                    this.$intervalsApiKeyInput.value = '';
+                }
+            } else {
+                const key = exists(this.$intervalsApiKeyInput) ?
+                      this.$intervalsApiKeyInput.value : '';
+                models.api.intervals.connect(key);
+            }
+            return;
+        }
+
         if(service === 'strava' ||
-           service === 'intervals' ||
            service === 'trainingPeaks') {
 
             console.log(this.services[service]);
