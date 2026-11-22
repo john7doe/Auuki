@@ -14,10 +14,7 @@ class Config {
             // session cookie works without CORS. Use a localhost base above for
             // local dev against an external API.
             API_URI: "",
-            // Public Cloudflare Turnstile site key. Build-time configurable via
-            // the TURNSTILE_SITE_KEY env var (e.g. a Parcel .env file), falling
-            // back to the default widget when unset.
-            TURNSTILE_SITE_KEY: process.env.TURNSTILE_SITE_KEY || "0x4AAAAAADivxD45Libwl9YF",
+            TURNSTILE_SITE_KEY: "0x4AAAAAADivxD45Libwl9YF",
             STRAVA_CLIENT_ID: this.defaultStravaClientId,
             INTERVALS_CLIENT_ID: this.defaultIntervalsClientId,
             TRAINING_PEAKS_CLIENT_ID: this.defaultTrainingPeaksClientId,
