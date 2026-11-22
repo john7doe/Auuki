@@ -22,8 +22,9 @@ module.exports = async function (context, req) {
     }
 
     const remoteip = (req.headers && req.headers['x-forwarded-for']) || undefined;
-    if (!(await turnstile.verify(token, remoteip))) {
-        context.res = json(200, { error: 'turnstile' });
+    const verification = await turnstile.verify(token, remoteip);
+    if (!verification.success) {
+        context.res = json(200, { error: 'turnstile', codes: verification.codes });
         return;
     }
 

@@ -6,6 +6,7 @@ import { models } from '../models/models.js';
 class AuthForms extends HTMLElement {
     constructor() {
         super();
+        this.submitting = false;
     }
     connectedCallback() {
         const self = this;
@@ -53,11 +54,11 @@ class AuthForms extends HTMLElement {
 
         this.el.$logout.addEventListener('pointerup', (e) => {
             models.api.auth.logout();
-        });
+        }, this.signal);
 
         this.$forgotMsg = document.querySelector('#forgot--msg'),
 
-        xf.sub('action:auth', self.onAction.bind(this));
+        xf.sub('action:auth', self.onAction.bind(this), this.signal);
     }
     disconnectedCallback() {
         this.abortController.abort();
@@ -67,20 +68,27 @@ class AuthForms extends HTMLElement {
 
         $form.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if(this.submitting) return;
             const formData = new FormData($form);
-            const cfTurnstileResponse = window.turnstile.getResponse();
-            if(cfTurnstileResponse === undefined) { return; }
+            const cfTurnstileResponse = window.turnstile?.getResponse();
+            if(typeof cfTurnstileResponse !== 'string' || cfTurnstileResponse.trim() === '') {
+                this.error('Complete the anti-bot check before submitting. If it does not load, reload the page and allow challenges.cloudflare.com.', false);
+                return;
+            }
             formData.append('cf-turnstile-response', cfTurnstileResponse);
             const data = Object.fromEntries(formData);
+            const button = Array.from($form.elements).find(element => element.type === 'submit');
 
-            await models.api.auth[method]({data,});
-            $form.reset();
-
-            // TODO:
-            // refresh turnstile
-            if(method === 'register' ||
-               method === 'forgot' ||
-               method === 'reset') {
+            this.submitting = true;
+            if(button) button.disabled = true;
+            try {
+                const success = await models.api.auth[method]({data,});
+                if(success || (method !== 'register' && method !== 'login')) {
+                    $form.reset();
+                }
+            } finally {
+                this.submitting = false;
+                if(button) button.disabled = false;
                 models.api.auth.resetTurnstile();
             }
 
@@ -161,6 +169,30 @@ class AuthForms extends HTMLElement {
             this.error('Wrong credentials or Authentication error');
             return;
         }
+        if(action === ':turnstile:error') {
+            this.error('Anti-bot verification failed. Complete the refreshed check and try again.', false);
+            return;
+        }
+        if(action === ':turnstile:configuration') {
+            this.error('Anti-bot verification is misconfigured. The site owner must check that the Cloudflare site key and Azure TURNSTILE_SECRET belong to the same widget.', false);
+            return;
+        }
+        if(action === ':register:exists') {
+            this.error('An account with that email already exists. Use Login instead.');
+            return;
+        }
+        if(action === ':register:invalid') {
+            this.error('Check your email and make sure both password fields match.');
+            return;
+        }
+        if(action === ':login:invalid') {
+            this.error('Email or password is incorrect. Check both and try again.');
+            return;
+        }
+        if(action === ':server:error') {
+            this.error('The account service could not complete your request. Try again shortly; if it keeps failing, contact the site owner.', false);
+            return;
+        }
         if(action === ':no-api') {
             this.switch('', this.el.tab);
             this.switch('', this.el.password);
@@ -185,12 +217,12 @@ class AuthForms extends HTMLElement {
             elements[target].classList.add('active');
         }
     }
-    error(msg = '') {
+    error(msg = '', clearPasswords = true) {
         if(msg !== '') {
             this.el.$error.textContent = msg;
         }
         this.el.$error.classList.add('active');
-        this.el.$pwds.forEach(($el) => $el.value = '');
+        if(clearPasswords) this.el.$pwds.forEach(($el) => $el.value = '');
     }
 }
 
