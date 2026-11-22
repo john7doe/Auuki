@@ -6,6 +6,20 @@ import strava from './strava.js';
 import intervals from './intervals.js';
 import trainingPeaks from './training-peaks.js';
 
+function authFailureAction(json, method) {
+    if(json.error === 'turnstile') {
+        const codes = json.codes ?? [];
+        if(codes.includes('missing-input-secret') || codes.includes('invalid-input-secret')) {
+            return ':turnstile:configuration';
+        }
+        return ':turnstile:error';
+    }
+    if(json.error === 'exists') return ':register:exists';
+    if(json.error === 'invalid') return `:${method}:invalid`;
+    if(json.error === 'server') return ':server:error';
+    return ':error';
+}
+
 function Auth(args = {}) {
     const api_uri = config.get().API_URI;
     const pwa_uri = config.get().PWA_URI;
@@ -49,7 +63,7 @@ function Auth(args = {}) {
     }
 
     function resetTurnstile() {
-        if('turnstile' in window) {
+        if('turnstile' in window && !_loggedIn && exists(_turnstileId)) {
             console.log(`:turnstile :reset ${_turnstileId}`);
             window.turnstile.reset(_turnstileId);
             _expired = false;
@@ -65,9 +79,10 @@ function Auth(args = {}) {
     }
 
     function removeTurnstile() {
-        if('turnstile' in window) {
+        if('turnstile' in window && exists(_turnstileId)) {
             console.log(`:turnstile :remove ${_turnstileId}`);
             window.turnstile.remove(_turnstileId);
+            _turnstileId = undefined;
             _expired = true;
         }
     }
@@ -90,7 +105,7 @@ function Auth(args = {}) {
             !isBrowser()
             ) {
             console.log(`:register :blocked :is-browser ${isBrowser()}`);
-            return;
+            return false;
         }
 
         try {
@@ -105,19 +120,23 @@ function Auth(args = {}) {
 
             if(json.error) {
                 console.log(':api :register :error');
-                xf.dispatch('action:auth', ':error');
-                return;
+                xf.dispatch('action:auth', authFailureAction(json, 'register'));
+                return false;
             }
             if(json?.result?.success) {
                 console.log(':api :register :success');
                 xf.dispatch('action:nav', 'settings:profile');
                 xf.dispatch('action:auth', ':password:login');
-                return;
+                return true;
             }
 
             console.log(`register: :none`);
+            xf.dispatch('action:auth', ':server:error');
+            return false;
         } catch(error) {
             console.log(error);
+            xf.dispatch('action:auth', ':server:error');
+            return false;
         }
     }
 
@@ -130,7 +149,7 @@ function Auth(args = {}) {
            data.password.trim() === '' ||
            !isBrowser()) {
             console.log(`:login :blocked :is-browser ${isBrowser()}`);
-            return;
+            return false;
         }
 
         try {
@@ -145,20 +164,24 @@ function Auth(args = {}) {
 
             if(json.error) {
                 console.log(`:api :login :error`);
-                xf.dispatch('action:auth', ':error');
-                return;
+                xf.dispatch('action:auth', authFailureAction(json, 'login'));
+                return false;
             }
 
             if(json?.result?.success) {
                 console.log(`:api :login :success`);
                 xf.dispatch('action:auth', ':password:profile');
-                status();
-                return;
+                await status();
+                return _loggedIn;
             }
 
             console.log(`:api :login :none`);
+            xf.dispatch('action:auth', ':server:error');
+            return false;
         } catch(error) {
             console.log(error);
+            xf.dispatch('action:auth', ':server:error');
+            return false;
         }
     }
 

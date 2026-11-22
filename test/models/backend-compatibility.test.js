@@ -96,4 +96,35 @@ describe('Managed API compatibility', () => {
         expect(actions).toContain(':password:logout');
         expect(actions).not.toContain(':error');
     });
+
+    test('exposes a rejected challenge as a Turnstile error', async () => {
+        fetch.mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({error: 'turnstile', codes: ['timeout-or-duplicate']}),
+        });
+
+        expect(await auth.login({data: {
+            email: 'athlete@example.com',
+            password: 'test-password',
+        }})).toBe(false);
+        expect(actions).toContain(':turnstile:error');
+        expect(actions).not.toContain(':login:invalid');
+    });
+
+    test('identifies a mismatched backend secret as site configuration failure', async () => {
+        fetch.mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({error: 'turnstile', codes: ['invalid-input-secret']}),
+        });
+
+        await auth.register({data: {
+            email: 'athlete@example.com',
+            password: 'test-password',
+            password_confirmation: 'test-password',
+        }});
+
+        expect(actions).toContain(':turnstile:configuration');
+    });
 });
