@@ -2,9 +2,6 @@ import { equals, existance, exists,
          empty, first, last, repeat,
          capitalize, toFixed } from '../functions.js';
 
-// TODO: replace with ParserCombinators.js implementation
-// - allow for wrong xml syntax
-
 function readAttribute(args = {}) {
     const el       = args.el;
     const name     = args.name;
@@ -71,44 +68,10 @@ function attributesToStep(args = {}) {
     }, {});
 }
 
-function readTextEvents(el) {
-    if(!exists(el) || !exists(el.children)) return [];
-
-    const out = [];
-    const children = el.children;
-
-    for(let i = 0; i < children.length; i++) {
-        const child = children[i];
-        if(child.tagName && child.tagName.toLowerCase() === 'textevent') {
-            const rawOffset = child.getAttribute('timeoffset');
-            const rawLoc    = child.getAttribute('locIndex');
-            const message   = child.getAttribute('message');
-
-            const timeoffset = parseInt(rawOffset);
-            const locIndex   = rawLoc === null ? undefined : parseInt(rawLoc);
-
-            if(isNaN(timeoffset) || !exists(message)) continue;
-
-            const ev = {timeoffset, message};
-            if(exists(locIndex) && !isNaN(locIndex)) ev.locIndex = locIndex;
-            out.push(ev);
-        }
-    }
-
-    return out;
-}
-
-function withTextEvents(interval, element) {
-    if(exists(element.textevents) && !empty(element.textevents)) {
-        interval.textevents = element.textevents;
-    }
-    return interval;
-}
-
 function Step(element) {
     const spec = {
         element: element,
-        filter:  (key) => !equals(key, 'element') && !equals(key, 'textevents'),
+        filter:  (key) => !equals(key, 'element') && !equals(key, 'children'),
         toName:  (key) => key.toLowerCase(),
     };
 
@@ -133,6 +96,85 @@ function OffStep(element) {
     };
 
     return attributesToStep(spec);
+}
+
+function isTextEventTag(name) {
+    return equals(String(name).toLowerCase(), 'textevent');
+}
+
+function readTextEvents(el) {
+    const nodes = el.children || [];
+    const acc   = [];
+
+    for(let i = 0; i < nodes.length; i++) {
+        const child = nodes[i];
+        if(isTextEventTag(child.tagName)) {
+            acc.push(Elements.TextEvent.read({el: child}));
+        }
+    }
+
+    return acc;
+}
+
+// timeoffset counts from the start of the whole block.
+// offset counts from the start of the slice that block was cut into.
+function toMessage(event, offset) {
+    const message = {};
+
+    if(exists(event.duration)) message.duration = event.duration;
+    message.offset  = offset;
+    message.message = event.message;
+
+    return message;
+}
+
+function assignMessages(intervals, children) {
+    if(!exists(children) || empty(children)) return intervals;
+
+    let cursor = 0;
+    const acc  = [];
+
+    for(let i = 0; i < intervals.length; i++) {
+        const interval  = intervals[i];
+        const steps     = interval.steps;
+        const nextSteps = [];
+
+        for(let s = 0; s < steps.length; s++) {
+            const step = steps[s];
+
+            if(!exists(step.duration)) {
+                nextSteps.push(step);
+                continue;
+            }
+
+            const start    = cursor;
+            const end      = start + step.duration;
+            const messages = [];
+
+            for(let c = 0; c < children.length; c++) {
+                const event      = children[c];
+                const timeoffset = event.timeoffset;
+
+                if(!equals(event.element, 'TextEvent')) continue;
+                if(!exists(timeoffset)) continue;
+                if(timeoffset < start || timeoffset >= end) continue;
+
+                messages.push(toMessage(event, timeoffset - start));
+            }
+
+            cursor = end;
+
+            if(empty(messages)) {
+                nextSteps.push(step);
+            } else {
+                nextSteps.push(Object.assign({}, step, {messages}));
+            }
+        }
+
+        acc.push(Object.assign({}, interval, {steps: nextSteps}));
+    }
+
+    return acc;
 }
 
 function Element(args = {}) {
@@ -187,21 +229,23 @@ function Element(args = {}) {
             acc[key] = value;
         }
 
-        const textevents = readTextEvents(el);
-        if(!empty(textevents)) {
-            acc.textevents = textevents;
+        if(!equals(name, 'TextEvent')) {
+            const children = readTextEvents(el);
+            if(children.length > 0) {
+                acc.children = children;
+            }
         }
 
         return acc;
     }
 
     function write(args = {}) {
-        let { content, textevents, ...attributes } = args;
+        let { content, ...attributes } = args;
 
         content = existance(args.content, defaults.content);
 
         const attrsString = Object.keys(attributes).reduce((acc, key) => {
-            acc += ` ${key}="${attributes[key]}"`;
+            acc += ` ${key}="${args[key]}"`;
             return acc;
         }, '');
 
@@ -217,10 +261,10 @@ function Element(args = {}) {
         const duration = calcDuration(element);
         const step = Step(element);
 
-        return withTextEvents({
+        return {
             duration: duration,
             steps:    [step],
-        }, element);
+        };
     }
 
     function defaultFromInterval(interval) {
@@ -286,50 +330,7 @@ function IntervalsT(args = {}) {
             return acc;
         })([]);
 
-        distributeTextEvents(steps, element.textevents);
-
-        return steps;
-    }
-
-    function distributeTextEvents(subIntervals, textevents) {
-        if(!exists(textevents) || empty(textevents)) return;
-        if(empty(subIntervals)) return;
-
-        const starts = [];
-        let cumulative = 0;
-        for(let i = 0; i < subIntervals.length; i++) {
-            starts.push(cumulative);
-            cumulative += subIntervals[i].duration;
-        }
-        const totalDuration = cumulative;
-
-        for(const ev of textevents) {
-            const t = ev.timeoffset;
-            let idx;
-
-            if(t < 0) {
-                idx = 0;
-            } else if(t >= totalDuration) {
-                idx = subIntervals.length - 1;
-            } else {
-                idx = 0;
-                for(let i = 0; i < subIntervals.length; i++) {
-                    if(t >= starts[i] && t < starts[i] + subIntervals[i].duration) {
-                        idx = i;
-                        break;
-                    }
-                }
-            }
-
-            const local = Math.max(0, t - starts[idx]);
-            const localEv = {timeoffset: local, message: ev.message};
-            if(exists(ev.locIndex)) localEv.locIndex = ev.locIndex;
-
-            if(!exists(subIntervals[idx].textevents)) {
-                subIntervals[idx].textevents = [];
-            }
-            subIntervals[idx].textevents.push(localEv);
-        }
+        return assignMessages(steps, element.children);
     }
 
     return Element(spec);
@@ -386,15 +387,18 @@ function FreeRide(args = {}) {
             steps.push({duration, slope, power});
         }
 
+        let interval = {};
+
         if(exists(track)) {
-            return withTextEvents({distance: trackDistance, steps: steps}, element);
+            interval = {distance: trackDistance, steps: steps};
+        } else {
+            interval = {
+                duration: duration,
+                steps: steps,
+            };
         }
 
-        return withTextEvents({
-            duration: duration,
-            steps: steps,
-        }, element);
-
+        return first(assignMessages([interval], element.children));
     }
 
     return Element(spec);
@@ -448,10 +452,10 @@ function Warmup(args = {}) {
             return step;
         });
 
-        return withTextEvents({
+        return first(assignMessages([{
             duration: duration,
             steps: fixedSteps,
-        }, element);
+        }], element.children));
     }
 
     function fromInterval(interval) {
@@ -507,10 +511,10 @@ function Cooldown(args = {}) {
             return step;
         });
 
-        return withTextEvents({
+        return first(assignMessages([{
             duration: duration,
             steps: fixedSteps,
-        }, element);
+        }], element.children));
     }
 
     function fromInterval(interval) {
@@ -586,10 +590,27 @@ function SteadyState(args = {}) {
             step = Step(element);
         }
 
-        return withTextEvents({
+        return first(assignMessages([{
             duration: duration,
             steps: [step],
-        }, element);
+        }], element.children));
+    }
+
+    return Element(spec);
+}
+
+function TextEvent(args = {}) {
+
+    const spec = Object.assign({
+        name:       'TextEvent',
+        tagOpen:    '<textevent',
+        tagClose:   ' />',
+        toInterval: toInterval,
+    }, args.spec);
+
+    // A TextEvent is not an effort, flatMap drops the empty list.
+    function toInterval() {
+        return [];
     }
 
     return Element(spec);
@@ -627,6 +648,7 @@ function Head(args = {}) {
         const category    = readContent(doc.querySelector('category'));
         const subcategory = readContent(doc.querySelector('subcategory'));
         const sportType   = readContent(doc.querySelector('sportType'));
+        const tags        = readContent(doc.querySelector('tags'));
 
         return {
             author:      existance(author, defaults.author),
@@ -635,6 +657,7 @@ function Head(args = {}) {
             category:    existance(category, defaults.category),
             subcategory: existance(subcategory, defaults.subcategory),
             sportType:   existance(sportType, defaults.sportType),
+            tags:        existance(tags, defaults.tags),
         };
     }
 
@@ -668,6 +691,7 @@ function Head(args = {}) {
             subcategory: intervals.meta.subcategory,
             sportType: intervals.meta.sportType,
             description: intervals.meta.description,
+            tags: intervals.meta.tags,
         };
     }
 
@@ -687,6 +711,10 @@ function Body() {
 
     function apply(el, method = 'read') {
         const name = el.tagName;
+
+        if(isTextEventTag(name)) {
+            return Elements.TextEvent[method]({el});
+        }
 
         if(exists(Elements[name])) {
             return Elements[name][method]({el});
@@ -818,12 +846,20 @@ const Attrs = {
     Track: Attribute({name: 'Track', decode: decodeSim, encode: encodeSim}),
 
     Repeat: Attribute({name: 'Repeat', decode: parseInt}),
+
+    duration:   Attribute({name: 'duration', decode: parseInt}),
+    timeoffset: Attribute({name: 'timeoffset', decode: parseInt}),
+    message:    Attribute({name: 'message'}),
+
+    TimeOffset: Attribute({name: 'TimeOffset', decode: parseInt}),
+    Message:    Attribute({name: 'Message'}),
 };
 
 const Elements = {
     Warmup:      Warmup(),
     // SteadyState: Element({name: 'SteadyState', tagOpen: '<SteadyState', tagClose: ' />'}),
     SteadyState: SteadyState(),
+    TextEvent:   TextEvent(),
     IntervalsT:  IntervalsT(),
     FreeRide:    FreeRide(),
     Ramp:        Ramp(),
@@ -901,6 +937,7 @@ const zwo = {
     read,
     fromInterval,
     write,
+
 };
 
 export { zwo };

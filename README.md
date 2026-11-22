@@ -3,11 +3,8 @@
 # Auuki
 Auuki is a powerful, no-nonsense app built for hammering out **structured workouts** on a smart trainer, right in your browser. No installs, no dependencies, no slow updates taking from precious training time.
 
-**My hacked in changes**
-* Run Zwift **.ZWO workouts** with in-workout **textevent cue messages** displayed as a banner over the workout graph
-* **15-second target preview** — see the next power, cadence, and slope targets inline before each transition
-
 **Key Features**:
+* Run Zwift **.ZWO workouts**
 * Connect via **Bluetooth** to smart trainers, power meters, heart rate monitors, the moxy monitor, and many more
 * Full control with **ERG mode**, **Grade Simulation**, and **Resistance mode**
 * Workouts with **Slope-based targets** for realistic effort control
@@ -15,6 +12,14 @@ Auuki is a powerful, no-nonsense app built for hammering out **structured workou
 * Recording of native **RR intervals** in the .FIT file
 * Built-in structured workouts to get you started
 * **Intervals.icu and Strava** integrations for seamless syncing and uploads
+
+**Fork customization**: A **15-second target preview** shows the next power,
+cadence, and slope targets inline before each transition. Workout text-event
+cues use upstream's full-graph overlay.
+
+This fork retains its same-origin Azure Functions backend and Intervals.icu
+API-key integration. Upstream's new account-management and email-verification
+flows are deferred; see [api/README.md](api/README.md) for backend capabilities.
 
 Built as a **progressive web app (PWA)**, Auuki is fully browser-based and runs independently. It makes use of some of the most advanced Browser APIs like: Web Bluetooth, Web Serial, and Web Components. The web version is **free and open-source**, keeping everything on your device.
 Train anywhere, with full control directly in your browser.

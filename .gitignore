@@ -11,6 +11,8 @@
 notes.txt
 env.js
 package-lock.json
+.env
+.env.*
 .parcel-cache/
 
 # Parcel build-time env files (may contain non-public values); keep the example

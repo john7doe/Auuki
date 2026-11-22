@@ -2,7 +2,7 @@ import { xf, exists, existance, empty, equals, mavg, avg, max,
          first, second, last, clamp, toFixed, isArray,
          isString, isObject } from '../functions.js';
 
-import { inRange, dateToDashString, getStartEndOfWeek, isToday, timeDiff, pad } from '../utils.js';
+import { inRange, dateToDashString, getStartEndOfWeek, isoDate, isToday, timeDiff, pad } from '../utils.js';
 
 import { LocalStorageItem } from '../storage/local-storage.js';
 import { idb } from '../storage/idb.js';
@@ -204,7 +204,7 @@ class Sources extends Model {
             heartRateZStack: 0,
             // ['cadence', 'cadenceLap', 'cadenceAvg', 'cadenceTarget']
             cadenceZStack: 0,
-            // ['powerAvg', 'powerLap', 'kcal']
+            // ['powerLap', 'powerAvg', 'kcal', 'virtualGear']
             kcalZStack: 0,
             // ['graph', 'power']
             graphZStack: 0,
@@ -710,6 +710,17 @@ class Workout extends Model {
     fromIntervalsResponse(response) {
         return response.map(this.fromIntervalsEvent.bind(this));
     }
+    fromTrainingPeaksEvent(event) {
+        const workout = this.parse(atob(event.workout_file_base64));
+        workout.meta.planned = true;
+        workout.meta.startDateLocal = event.start_date_local;
+        workout.id = uuid();
+        workout.training_peaks_id = event.id;
+        return workout;
+    }
+    fromTrainingPeaksResponse(response) {
+        return response.map(this.fromTrainingPeaksEvent.bind(this));
+    }
     async readFromFile(file) {
         const result = await fileHandler.read(file);
         return {result, name: file.name};
@@ -881,6 +892,29 @@ class Planned {
             const { startOfWeek, endOfWeek } = getStartEndOfWeek(new Date(), true);
             const response = await api.intervals.wod(startOfWeek, endOfWeek);
             const workouts = self.workoutModel.fromIntervalsResponse(response);
+
+            this.setWorkouts(workouts);
+            this.setModified(service);
+            this.backup();
+
+            if(!this.isEmpty()) {
+                for(let workout of this.data.workouts) {
+                    if(isToday(workout.meta.startDateLocal)) {
+                        const id = workout.id;
+                        xf.dispatch(`action:li:${id}`, ':select');
+                        break;
+                    }
+                }
+            }
+        }
+        if(service === 'trainingPeaks') {
+            // TrainingPeaks reads the calendar from the athlete's local today forward.
+            const today = isoDate();
+            const { startOfWeek, endOfWeek } = getStartEndOfWeek(new Date(), true);
+            const oldest = today > startOfWeek ? today : startOfWeek;
+            const newest = oldest > endOfWeek ? oldest : endOfWeek;
+            const response = await api.trainingPeaks.wod(oldest, newest);
+            const workouts = self.workoutModel.fromTrainingPeaksResponse(response);
 
             this.setWorkouts(workouts);
             this.setModified(service);
@@ -1561,6 +1595,46 @@ class SpeedState extends VirtualState {
     }
 }
 
+// 0 means no gear report has arrived yet.
+// A real gear is 1 through 254. The protocol's highest set byte is 0xFF,
+// and that byte decodes to gear 254.
+class VirtualGear extends Model {
+    postInit(args = {}) {
+        this.min = existance(args.min, 1);
+        this.max = existance(args.max, 254);
+    }
+    defaultValue() { return 0; }
+    apply(gear, messages = []) {
+        const list = isArray(messages) ? messages : [];
+        let next = gear;
+
+        for(let i = 0; i < list.length; i++) {
+            next = this.applyOne(next, list[i]);
+        }
+
+        return next;
+    }
+    applyOne(gear, message) {
+        if(!message) return gear;
+
+        if(equals(message.action, 'shiftUp') && equals(message.state, 'pressed')) {
+            if(gear < this.min) return this.min;
+            return clamp(this.min, this.max, gear + 1);
+        }
+
+        if(equals(message.action, 'shiftDown') && equals(message.state, 'pressed')) {
+            if(gear <= this.min) return gear;
+            return gear - 1;
+        }
+
+        if(equals(message.action, 'gearSet') && equals(message.state, 'value') && Number.isFinite(message.value)) {
+            return clamp(this.min, this.max, message.value);
+        }
+
+        return gear;
+    }
+}
+
 class TSS {
     // TSS = (t * NP * IF) / (FTP * 3600) * 100
     // NP:
@@ -1601,6 +1675,8 @@ const volume = new Volume({prop: 'volume', storage: LocalStorageItem});
 const measurement = new Measurement({prop: 'measurement', storage: LocalStorageItem});
 const dataTileSwitch = new DataTileSwitch({prop: 'dataTileSwitch', storage: LocalStorageItem});
 
+const virtualGear = new VirtualGear({prop: 'virtualGear'});
+
 const power1s = new PropInterval({prop: 'db:power', effect: 'power1s', interval: 1000});
 const power3s = new PropInterval({prop: 'db:power', effect: 'power3s', interval: 3000});
 const powerInZone = new PowerInZone({ftpModel: ftp});
@@ -1629,6 +1705,7 @@ let models = {
     powerAvg,
     powerInZone,
     kcal,
+    virtualGear,
 
     heartRateLap,
     heartRateAvg,

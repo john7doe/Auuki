@@ -9,7 +9,6 @@ import './planned-list.js';
 import './active-list-item.js';
 import './activity-list.js';
 import './workout-graph.js';
-import './workout-message.js';
 import './moxy-graph.js';
 import './watch.js';
 import './ant-device-scan.js';

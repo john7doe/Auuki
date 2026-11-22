@@ -1,4 +1,4 @@
-import { exists, xf, print, } from '../functions.js';
+import { exists, equals, xf, print, } from '../functions.js';
 import { OAuthService, DialogMsg, stateParam, } from './enums.js';
 import { uuid } from '../storage/uuid.js';
 import config from './config.js';
@@ -7,14 +7,10 @@ import intervals from './intervals.js';
 import trainingPeaks from './training-peaks.js';
 import auth from './auth.js';
 
-
-//
-
 function API() {
     const router = Router();
 
     async function start() {
-        // initialise the Intervals.icu connection state from the stored API key
         intervals.update();
         router.start();
     }
@@ -39,8 +35,14 @@ function Router(args = {}) {
         const status = await auth.status();
 
         const params = getParams();
+        if(params.get('token')) {
+            xf.dispatch('ui:page-set', 'settings');
+            xf.dispatch('action:nav', 'settings:profile');
+            xf.dispatch('action:auth', ':password:reset');
+            return;
+        }
+
         if(hasParams(params)) {
-            console.log(params);
             await onQueryParams(params);
         } else {
             // TODO: remove
@@ -70,32 +72,29 @@ function Router(args = {}) {
         const code   = params.get('code');
         const scope  = params.get('scope');
         const error  = params.get('error');
-        const token = params.get('token');
-
         // switch
         if(error) {
             console.error(`:api :param :error `, error);
+            clearParams();
             return true;
         }
-        if(!error && (code || scope || state)) {
-            const { service, id } = stateParam.decode(state);
-            console.log(`:api :onQueryParams service: ${service} id: ${id}`);
+        if(code || scope || state) {
+            if(!stateParam.consume(state)) {
+                console.error(`:api :param :state`);
+                clearParams();
+                return true;
+            }
+            const { service } = stateParam.decode(state);
+            console.log(`:api :onQueryParams service: ${service}`);
 
-            if(service === OAuthService.strava) {
+            if(equals(service, OAuthService.strava)) {
                 await strava.paramsHandler({state, code, scope});
             }
-            if(service === OAuthService.trainingPeaks) {
+            if(equals(service, OAuthService.trainingPeaks)) {
                 await trainingPeaks.paramsHandler({state, code, scope});
             }
             return true;
         }
-        if(!error && token) {
-            xf.dispatch('ui:page-set', 'settings');
-            xf.dispatch('action:nav', 'settings:profile');
-            xf.dispatch('action:auth', ':password:reset');
-            return true;
-        }
-        // clearParams();
         return false;
     }
 
@@ -110,6 +109,4 @@ function Router(args = {}) {
     });
 }
 
-
 export default API;
-

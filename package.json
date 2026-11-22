@@ -1,23 +1,33 @@
 {
-    "devDependencies": {
-        "@babel/preset-env": "^7.13.12",
-        "@parcel/packager-raw-url": "^2.12.0",
-        "@parcel/transformer-webmanifest": "^2.12.0",
-        "fake-indexeddb": "^3.1.7",
-        "jest": "^27.4",
-        "process": "^0.11.10"
+    "private": true,
+    "engines": {
+        "node": ">=22.18.0"
     },
     "source": "src/index.html",
     "scripts": {
         "test": "jest",
-        "test:ci": "jest test/ant test/models test/watch test/workouts test/ble/common test/ble/ct test/ble/heart-rate-measurement test/ble/indoor-bike-data test/ble/wcps test/storage/local-storage test/physics test/utils",
+        "test:ci": "jest test/ant test/models test/watch test/workouts test/views/target-preview test/ble/common test/ble/ct test/ble/heart-rate-measurement test/ble/indoor-bike-data test/ble/wcps test/storage/local-storage test/physics test/utils",
         "start": "parcel",
         "starttls": "parcel --cert ./dev_cert/cert.pem --key ./dev_cert/key.pem",
         "build": "parcel build && cp staticwebapp.config.json dist/"
     },
-    "dependencies": {
-        "@babel/core": "^7.13.13",
-        "@babel/node": "^7.13.13",
-        "parcel": "^2.12.0"
+    "devDependencies": {
+        "@babel/core": "^7.29.7",
+        "@babel/plugin-transform-modules-commonjs": "^7.29.7",
+        "@parcel/packager-raw-url": "^2.16.4",
+        "@parcel/transformer-webmanifest": "^2.16.4",
+        "babel-jest": "^30.5.2",
+        "fake-indexeddb": "^6.2.6",
+        "jest": "^30.5.2",
+        "jest-environment-jsdom": "^30.5.2",
+        "parcel": "^2.16.4",
+        "process": "^0.11.10"
+    },
+    "allowScripts": {
+        "@parcel/watcher": false,
+        "@swc/core": false,
+        "lmdb": false,
+        "msgpackr-extract": false,
+        "unrs-resolver": false
     }
 }

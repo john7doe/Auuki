@@ -254,6 +254,7 @@ body {
 
     --black-opacity-01:  rgba(0,0,0, 0.1);
     --black-opacity-02:  rgba(0,0,0, 0.2);
+    --black-opacity-05:  rgba(0,0,0, 0.5);
     --white-opacity-01:  rgba(255,255,255, 0.1);
     --white-opacity-03:  rgba(255,255,255, 0.3);
 }
@@ -959,53 +960,6 @@ div.graph--bar-group {
     z-index: 1;
 }
 
-.workout-message {
-    position: absolute;
-    top: 1.8em;
-    left: 0.5em;
-    right: 0.5em;
-    z-index: 3;
-
-    display: block;
-    padding: 0.5em 0.75em;
-    font-family: var(--ssb-font-family);
-    font-size: 0.95em;
-    line-height: 1.3em;
-    text-align: center;
-
-    color: var(--white, #fff);
-    border-radius: 0.3em;
-
-    pointer-events: none;
-    transition: opacity 200ms ease-in-out;
-    opacity: 1;
-}
-
-.workout-message.is-hidden {
-    opacity: 0;
-    visibility: hidden;
-}
-
-.workout-message:empty {
-    display: none;
-}
-
-.data-tile--preview {
-    display: inline-block;
-    margin-left: 0.4em;
-    line-height: 1em;
-    font-family: var(--ssb-font-family);
-    font-size: var(--data-tile--value-font-size)/2;
-    font-weight: bold;
-    opacity: 0.55;
-    color: var(--text-color, inherit);
-    white-space: nowrap;
-}
-
-.data-tile--preview:empty {
-    display: none;
-}
-
 .elevation--value {
     position: absolute;
     top: 0.4em;
@@ -1141,6 +1095,49 @@ div.graph--bar-group {
     height: var(--graph-height);
     z-index: 1;
     pointer-events: none;
+}
+
+.data-tile--preview {
+    display: inline-block;
+    margin-left: 0.4em;
+    line-height: 1em;
+    font-family: var(--ssb-font-family);
+    font-size: calc(var(--data-tile--value-font-size) / 2);
+    font-weight: bold;
+    opacity: 0.55;
+    color: var(--text-color, inherit);
+    white-space: nowrap;
+}
+
+.data-tile--preview:empty {
+    display: none;
+}
+
+#workout-text-event {
+    display: none;
+    position: absolute;
+    z-index: 2;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 0.8em 1em;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-family: var(--ssb-font-family);
+    font-size: 2.0em;
+    font-weight: bold;
+    line-height: 1.25em;
+    color: #fff;
+    background-color: var(--progress);
+    pointer-events: none;
+}
+
+#workout-text-event.active {
+    display: flex;
 }
 
 auto-start-counter {
@@ -2384,7 +2381,9 @@ battery-level {
 
 /* User Auth */
 
-#forgot--msg {
+#forgot--msg,
+#register--msg,
+#login--msg {
     font-size: 1.4em;
     padding: 1em;
 
@@ -2397,6 +2396,11 @@ battery-level {
     &.fail {
         color: var(--zone-red)
     }
+}
+#register--msg:empty,
+#login--msg:empty {
+    display: none;
+    padding: 0;
 }
 
 .auth, .profile {
@@ -2520,6 +2524,86 @@ battery-level {
 }
 #profile.active {
     display: block;
+}
+#account--management--cont .list--row--inner {
+    display: flex;
+    justify-content: space-between;
+    max-width: var(--inner-max-width-fixed);
+    margin: 0 auto;
+}
+#account--badge {
+    font-size: 2em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 5rem;
+    height: 5rem;
+    margin: 1rem auto 1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: var(--white);
+    background-color: var(--zone-gray);
+    border: 1px solid var(--zone-gray);
+    border-radius: 50%;
+}
+#account--identifier {
+    font-size: 1.2em;
+}
+#account--delete--button {
+    color: #fff;
+    background-color: var(--red);
+    border-color: var(--red);
+}
+#account--delete--button:hover {
+    background-color: var(--zone-red);
+}
+
+#dialog--delete-account {
+    width: 30rem;
+    max-width: 90%;
+    padding: 1rem;
+
+    color: var(--foreground-color);
+    background-color: var(--background-color-2);
+    border: 1px solid var(--border-color);
+
+    p {
+        font-size: 1.4em;
+        line-height: 1.4em;
+        margin: 1em auto;
+    }
+
+    #account--delete--password {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    #account--delete--msg:empty {
+        display: none;
+    }
+
+    #account--delete--form--actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    button {
+        color: var(--foreground-color);
+        background: none;
+        border: none;
+        cursor: pointer;
+    }
+
+    #account--delete--confirm {
+        color: #fff;
+        background-color: var(--red);
+        border-color: var(--red);
+    }
+
+    #account--delete--confirm:hover {
+        background-color: var(--zone-red);
+    }
 }
 
 @media (prefers-color-scheme: light) {
@@ -2695,10 +2779,6 @@ activity-item {
         background-color: var(--background-color-2);
     }
 
-    .tp-logo--icon {
-        background-color: var(--gray);
-        cursor: not-allowed;
-    }
     .action--image {
         cursor: not-allowed;
 
@@ -2728,7 +2808,8 @@ activity-item {
     display: none;
     display: grid;
     grid-template-columns: 40% 1fr 1fr 1fr 1fr;
-    /* grid-template-columns: 8rem 8rem 1fr 1fr 8rem 4rem; */
+    /* Uncomment when Training Peaks integration is on */
+    /* grid-template-columns: 40% 1fr 1fr 1fr 1fr 1fr; */
     align-items: center;
     line-height: 4em;
     height: 4em;

@@ -604,6 +604,28 @@ class SkinTemperatureValue extends DataView {
 customElements.define('skin-temperature-value', SkinTemperatureValue);
 
 
+class WorkoutTextEvent extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:workoutTextEvent',
+        };
+    }
+    render() {
+        const message = this.transform(this.state);
+
+        this.textContent = message;
+
+        if(empty(message)) {
+            this.classList.remove('active');
+        } else {
+            this.classList.add('active');
+        }
+    }
+}
+
+customElements.define('workout-text-event', WorkoutTextEvent);
+
+
 
 class WorkoutName extends DataView {
     getDefaults() {
@@ -959,6 +981,23 @@ class KcalAvg extends DataView {
 }
 
 customElements.define('kcal-avg', KcalAvg);
+
+class VirtualGearValue extends DataView {
+    getDefaults() {
+        return {
+            prop: 'db:virtualGear',
+        };
+    }
+    subs() {
+        xf.sub(`${this.prop}`, this.onUpdate.bind(this), this.signal);
+    }
+    transform(state) {
+        if(equals(state, 0)) return '--';
+        return state;
+    }
+}
+
+customElements.define('virtual-gear', VirtualGearValue);
 
 class PowerInZone extends HTMLElement {
     constructor() {
@@ -1523,7 +1562,7 @@ class OAuth extends HTMLElement {
         const self = this;
         this.abortController = new AbortController();
         this.signal = { signal: self.abortController.signal };
-        this.services = {strava: false, intervals: false};
+        this.services = {strava: false, intervals: false, trainingPeaks: false};
 
         this.$stravaButton = self.querySelector('#strava--connect--button');
         this.$intervalsButton = self.querySelector('#intervals--connect--button');
@@ -1587,7 +1626,7 @@ class OAuth extends HTMLElement {
             this.$intervalsButton.textContent = services.intervals ? 'Disconnect' : 'Connect';
         }
         if(exists(this.$tpButton)) {
-            this.$tpButton.textContent = services.tp ? 'Disconnect' : 'Connect';
+            this.$tpButton.textContent = services.trainingPeaks ? 'Disconnect' : 'Connect';
         }
     }
 }
@@ -1920,6 +1959,37 @@ class CompatibilityCheck extends HTMLElement {
 
 customElements.define('compatibility-check', CompatibilityCheck);
 
+class AccountBadge extends HTMLElement {
+    constructor() {
+        super();
+    }
+    connectedCallback() {
+        this.abortController = new AbortController();
+        this.signal = { signal: this.abortController.signal };
+
+        this.$image = this.querySelector('#account--badge');
+        this.$identifier = this.querySelector('#account--identifier');
+
+        xf.sub('db:account', this.onAccount.bind(this), this.signal);
+    }
+    disconnectedCallback() {
+        this.abortController.abort();
+    }
+    onAccount(account) {
+        const identifier = account?.identifier ?? '';
+        this.render(identifier);
+    }
+    render(identifier) {
+        const text = String(identifier).trim();
+        const letter = equals(text, '') ? '' : text.slice(0, 1);
+
+        this.$identifier.textContent = text;
+        this.$image.textContent = letter;
+    }
+}
+
+customElements.define('account-badge', AccountBadge);
+
 export {
     DataView,
 
@@ -1958,4 +2028,6 @@ export {
     NavigationStack,
     ViewAction,
     BatteryLevel,
+
+    AccountBadge,
 }

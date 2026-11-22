@@ -68,6 +68,12 @@ const resources = [
     'ble/moxy/moxy.js',
     'ble/moxy/smo2.js',
 
+    'ble/obc/controls.js',
+    'ble/obc/obc.js',
+    'ble/obc/training-controls.js',
+    'ble/obc/ui-controls.js',
+    'ble/obc/virtual-gear-shifting.js',
+
     'ble/rcs/race-controller-measurement.js',
     'ble/rcs/rcs.js',
 
@@ -175,7 +181,9 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-    console.log(`SW: fetch: `, e.request.url);
+    // The path only
+    const path = new URL(e.request.url).pathname;
+    console.log(`SW: fetch: `, path);
 
     // Cache falling back to the Network
     e.respondWith(

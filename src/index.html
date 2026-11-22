@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
     <head>
+        <meta name="referrer" content="origin">
         <meta charset="UTF-8"/>
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#35363a" />
@@ -73,7 +74,14 @@
                                                       class="data-tile-small--value">--</kcal-avg>
                                         </div>
                                     </z-stack-item>
-                                <z-stack>
+                                    <z-stack-item>
+                                        <h2 class="data-tile-small--heading">GEAR</h2>
+                                        <div class="data-tile-small--value-cont">
+                                            <virtual-gear id="virtual-gear-value"
+                                                          class="data-tile-small--value">--</virtual-gear>
+                                        </div>
+                                    </z-stack-item>
+                                </z-stack>
                             </div>
 
                             <div class="data-tile" id="data-tile--power">
@@ -276,6 +284,7 @@
 
                         <div id="graph-power" class="graph">
                             <auto-start-counter class="">3</auto-start-counter>
+                            <workout-text-event id="workout-text-event"></workout-text-event>
                             <!-- <z-stack data-key="graphZStack">
                                  <z-stack-item class="active"> -->
                                     <h4 class="graph--heading">Graph</h4>
@@ -298,7 +307,6 @@
 
                         <div id="graph-workout" class="graph">
                             <workout-name id="current-workout-name" class="graph--heading"></workout-name>
-                            <workout-message id="workout-message" class="workout-message is-hidden"></workout-message>
                             <workout-graph class="workout--graph-cont" prop="workout" metric="ftp"></workout-graph>
                         </div>
 
@@ -558,13 +566,15 @@
                                         </svg>
                                         <div class="connection-icon-switch--indicator none intervals"></div>
                                     </view-action>
-                                    <!-- <view-action
-                                         class="activity--action"
-                                         action="trainingPeaks::wod"
-                                         topic="planned">
-                                         <div class="tp-logo--icon">TP</div>
-                                         <div class="connection-icon-switch--indicator none tp"></div>
-                                         </view-action> -->
+                                    <!--
+                                    <view-action
+                                        class="activity--action"
+                                        action=":trainingPeaks:wod"
+                                        topic=":planned">
+                                        <div class="tp-logo--icon">TP</div>
+                                        <div class="connection-icon-switch--indicator none tp"></div>
+                                    -->
+                                    </view-action>
                                 </div> <!-- end planned--actions -->
                             </div> <!-- end list--heading--cont -->
                         </div>
@@ -673,6 +683,7 @@
                                             name="password"
                                             type="password"
                                             pattern=".{8,64}"
+                                            maxlength="64"
                                             title="8 characters minimum"
                                             placeholder="Password"
                                             value=""
@@ -684,6 +695,7 @@
                                             class="input"
                                             name="password_confirmation"
                                             pattern=".{8,64}"
+                                            maxlength="64"
                                             title="8 characters minimum"
                                             placeholder="Confirm Password"
                                             type="password"
@@ -704,6 +716,7 @@
                                                     index="1">Login instead</div>
                                         </view-action>
                                     </div>
+                                    <div id="register--msg"></div>
                                 </form>
                                 <form id="login--form" class="login--form active">
                                     <h2 class="form--header">Login</h2>
@@ -723,6 +736,7 @@
                                             name="password"
                                             type="Password"
                                             pattern=".{8,64}"
+                                            maxlength="64"
                                             title="8 characters minimum"
                                             placeholder="Password"
                                             value=""
@@ -741,6 +755,7 @@
                                             <div class="tab--button">Forgot</div>
                                         </view-action>
                                     </div>
+                                    <div id="login--msg"></div>
                                 </form>
                                 <form id="forgot--form" class="forgot--form">
                                     <h2 class="form--header">Forgot</h2>
@@ -772,6 +787,7 @@
                                             name="password"
                                             type="password"
                                             pattern=".{8,64}"
+                                            maxlength="64"
                                             title="8 characters minimum"
                                             placeholder="Password"
                                             value=""
@@ -783,6 +799,7 @@
                                             class="input"
                                             name="password_confirmation"
                                             pattern=".{8,64}"
+                                            maxlength="64"
                                             title="8 characters minimum"
                                             placeholder="Confirm Password"
                                             type="password"
@@ -817,8 +834,8 @@
                             <button id="logout--button"
                                     class="btn"
                                     type="button">Logout</button>
-
                         </div>
+
                         <div class="list--sub-section app-connections">
                             <o-auth>
                                 <div class="list--row--outer">
@@ -901,6 +918,7 @@
                                 </div>
                             </o-auth>
                         </div> <!-- end connections -->
+
                     </div> <!-- end profile -->
 
                 </div> <!-- end profile--sub-tab -->
@@ -1404,6 +1422,40 @@
                             </div>
                         </div>
                     </div> <!-- end moxy-monitor settings -->
+
+                    <!-- open bike control settings -->
+                    <div class="device-card">
+                        <div class="device-card--cont">
+                            <div class="device-card--header">
+                                <div></div>
+                                <div class="device-card--header--label">OpenBikeControl</div>
+                                <battery-level for="ble:openBikeControl">
+                                    <div class="battery--level"></div>
+                                </battery-level>
+                            </div>
+                            <div class="device-card--body">
+                                <div class="device-card--body--row">
+                                    <connection-switch for="ble:openBikeControl"
+                                                    class="connection-icon-switch"
+                                                    indicatorClass="connection-icon-switch--indicator">
+
+                                        <svg class="connection-icon-switch--icon icon">
+                                            <use href="#icon--bluetooth"></use>
+                                        </svg>
+                                        <div class="connection-icon-switch--indicator off"></div>
+                                    </connection-switch>
+                                    <div class="device-card--tile">
+                                        <h3 class="device-card--tile--header">Name</h3>
+                                        <data-view class="data-view device-card--tile--value"
+                                                prop="ble:openBikeControl:name">--</data-view>
+                                    </div>
+                                    <div class="device-card--tile"></div>
+                                    <div class="device-card--tile"></div>
+                                    <div class="device-card--tile"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div> <!-- end open bike control settings -->
 
                     <!-- Options -->
                     <div class="list--sub-section">
